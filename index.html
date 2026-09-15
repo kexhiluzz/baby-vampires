@@ -135,10 +135,11 @@ const EYE=1.62,EYE_CROUCH=1.02,RAD=.32,JUMP_V=6.0;
 const MAX_ECHO=14,ECHO_SPEED=10,AFTERGLOW=1.6;
 const MEM_TICK=0.25, MEM_FADE=16;   // segundos hasta olvidar del todo
 const SOUND_MS=343;                    // velocidad del sonido, para los retornos
-const VERSION="v17 · 15 sep";         // sube con cada cambio que pides: así sabes qué juegas
+const VERSION="v21 · 15 sep";         // sube con cada cambio que pides: así sabes qué juegas
 const LAMBS_TO_WIN=2;                 // solo se gana bebiendo
 const LIVES=3;                        // tres cuerpos y se acabó
 const START_AMMO=2, MAX_AMMO=2, AMMO_PICKUPS=8;
+const SHOT_GAP=0.5;                   // medio segundo entre tiro y tiro
 const LAMB_COUNT=3, LAMB_BACK=22;     // vuelven, si no la partida se atasca
 const RESPAWN=5, DRINK_SECS=3.0;
 const GAIT=[{sp:3.1,stride:.62,vol:.40,cut:1500,echo:.34,eR:3.8},
@@ -504,7 +505,7 @@ function setAlcoba(fl,f,r){                     // cama con dosel
   for(let k=0;k<4;k++){                                                  // los cuatro postes
     const ox=(k&1?1:-1)*.95,oz=(k&2?1:-1)*1.0;
     props.push({x:px+ox,y:fl.y,z:pz+oz,sx:.13,sy:2.35,sz:.13,hang:1});}
-  props.push({x:px,y:fl.y+2.35,z:pz,sx:2.2,sy:.16,sz:2.3,hang:1});       // el dosel
+  props.push({x:px,y:fl.y+2.35,z:pz,sx:2.2,sy:.16,sz:2.3,hang:1,m:"f"});  // el dosel
   return true;}
 function setPiano(fl,f,r){
   const px=r.cx+rf(-1,1),pz=r.cz+rf(-1,1);
@@ -522,8 +523,8 @@ function setBiombo(fl,f,r){                     // el escondite más claro de to
 function setEstatua(fl,f,r){
   const px=rf(r.x0+1.4,r.x1-1.4),pz=rf(r.z0+1.4,r.z1-1.4);
   if(!isFinite(px)||!isFinite(pz)||!spotFree(fl,f,px,pz,1.2))return false;
-  props.push({x:px,y:fl.y,z:pz,sx:.75,sy:1.15,sz:.75,hide:1});
-  props.push({x:px,y:fl.y+1.15,z:pz,sx:.46,sy:1.05,sz:.4,hang:1});
+  props.push({x:px,y:fl.y,z:pz,sx:.75,sy:1.15,sz:.75,hide:1,m:"s"});
+  props.push({x:px,y:fl.y+1.15,z:pz,sx:.46,sy:1.05,sz:.4,hang:1,m:"s"});
   return true;}
 function genProps(){
   props=[];nooks=[];
@@ -541,12 +542,12 @@ function genProps(){
         // la lámpara grande del vestíbulo, colgada del techo de arriba
         const cy=F[1].y+WALL_H;
         for(let c=0;c<9;c++)                                  // la cadena, a la vista
-          props.push({x:r.cx,y:cy-.19*(c+1),z:r.cz,sx:.08,sy:.17,sz:.08,hang:1});
-        props.push({x:r.cx,y:cy-2.05,z:r.cz,sx:.34,sy:.34,sz:.34,hang:1});
+          props.push({x:r.cx,y:cy-.19*(c+1),z:r.cz,sx:.08,sy:.17,sz:.08,hang:1,m:"m"});
+        props.push({x:r.cx,y:cy-2.05,z:r.cz,sx:.34,sy:.34,sz:.34,hang:1,m:"m"});
         for(let b=0;b<8;b++){const a=b*Math.PI/4+.2;
-          props.push({x:r.cx+Math.sin(a)*.38,y:cy-2.1,z:r.cz+Math.cos(a)*.38,sx:.16,sy:.11,sz:.16,hang:1});
-          props.push({x:r.cx+Math.sin(a)*.74,y:cy-2.2,z:r.cz+Math.cos(a)*.74,sx:.17,sy:.2,sz:.17,hang:1});
-          props.push({x:r.cx+Math.sin(a)*.74,y:cy-2.42,z:r.cz+Math.cos(a)*.74,sx:.1,sy:.5,sz:.1,hang:1});}
+          props.push({x:r.cx+Math.sin(a)*.38,y:cy-2.1,z:r.cz+Math.cos(a)*.38,sx:.16,sy:.11,sz:.16,hang:1,m:"m"});
+          props.push({x:r.cx+Math.sin(a)*.74,y:cy-2.2,z:r.cz+Math.cos(a)*.74,sx:.17,sy:.2,sz:.17,hang:1,m:"m"});
+          props.push({x:r.cx+Math.sin(a)*.74,y:cy-2.42,z:r.cz+Math.cos(a)*.74,sx:.1,sy:.5,sz:.1,hang:1,m:"m"});}
         continue;}
       if(r.corr){
         // los pasillos solo llevan cosas finas contra la pared
@@ -574,37 +575,37 @@ function genProps(){
         const tw=Math.min(3.4,w*.42),td=Math.min(3.0,h*.4);
         const px=r.x1-tw/2-.3,pz=r.z1-td/2-.3;
         if(spotFree(fl,f,px,pz,Math.max(tw,td)))
-          props.push({x:px,y:fl.y,z:pz,sx:tw,sy:.75,sz:td,step:1});}
+          props.push({x:px,y:fl.y,z:pz,sx:tw,sy:.75,sz:td,step:1,m:"s"});}
       // candelabro, colgado del techo de verdad
       if(R()<.55&&!holeNear(r.cx,r.cz,1.0)){
         const cy=fl.y+WALL_H;
         // cadena a la vista hasta el techo: si no, el plato parece una mesa flotando
         for(let c=0;c<5;c++)
-          props.push({x:r.cx,y:cy-.16*(c+1),z:r.cz,sx:.07,sy:.14,sz:.07,hang:1});
-        props.push({x:r.cx,y:cy-1.02,z:r.cz,sx:.26,sy:.22,sz:.26,hang:1});   // el cubo central
+          props.push({x:r.cx,y:cy-.16*(c+1),z:r.cz,sx:.07,sy:.14,sz:.07,hang:1,m:"m"});
+        props.push({x:r.cx,y:cy-1.02,z:r.cz,sx:.26,sy:.22,sz:.26,hang:1,m:"m"});  // el cubo central
         for(let b=0;b<6;b++){const a=b*Math.PI/3+.25;
-          props.push({x:r.cx+Math.sin(a)*.24,y:cy-.95,z:r.cz+Math.cos(a)*.24,sx:.13,sy:.09,sz:.13,hang:1});
-          props.push({x:r.cx+Math.sin(a)*.46,y:cy-1.02,z:r.cz+Math.cos(a)*.46,sx:.14,sy:.16,sz:.14,hang:1});
-          props.push({x:r.cx+Math.sin(a)*.46,y:cy-1.18,z:r.cz+Math.cos(a)*.46,sx:.09,sy:.42,sz:.09,hang:1});}}
+          props.push({x:r.cx+Math.sin(a)*.24,y:cy-.95,z:r.cz+Math.cos(a)*.24,sx:.13,sy:.09,sz:.13,hang:1,m:"m"});
+          props.push({x:r.cx+Math.sin(a)*.46,y:cy-1.02,z:r.cz+Math.cos(a)*.46,sx:.14,sy:.16,sz:.14,hang:1,m:"m"});
+          props.push({x:r.cx+Math.sin(a)*.46,y:cy-1.18,z:r.cz+Math.cos(a)*.46,sx:.09,sy:.42,sz:.09,hang:1,m:"m"});}}
       // cortinajes: un rincón donde el suelo no te delata al moverte
       if(R()<.45){
         const side=ri(0,3);let nx,nz,cw,cd;
         if(side<2){cw=.22;cd=1.9;nx=(side===0?r.x0+.30:r.x1-.30);nz=rf(r.z0+1.5,r.z1-1.5);}
         else{cw=1.9;cd=.22;nz=(side===2?r.z0+.30:r.z1-.30);nx=rf(r.x0+1.5,r.x1-1.5);}
         if(isFinite(nx)&&isFinite(nz)&&spotFree(fl,f,nx,nz,1.2)){
-          props.push({x:nx,y:fl.y,z:nz,sx:cw,sy:2.35,sz:cd,hang:1,hide:1});  // la tela no frena, pero tapa
+          props.push({x:nx,y:fl.y,z:nz,sx:cw,sy:2.35,sz:cd,hang:1,hide:1,m:"f"});  // la tela no frena, pero tapa
           nooks.push({x:nx,y:fl.y,z:nz,rx:cw/2+.55,rz:cd/2+.55});}}
       // chimenea con su campana hasta el techo
       if(R()<.34){
         const cx2=rf(r.x0+1.8,r.x1-1.8);
         if(spotFree(fl,f,cx2,r.z0+.45,2.1)){
-          props.push({x:cx2,y:fl.y,z:r.z0+.45,sx:2.1,sy:1.25,sz:.7});
-          props.push({x:cx2,y:fl.y+1.25,z:r.z0+.3,sx:1.5,sy:WALL_H-1.25,sz:.42,hang:1});}}
+          props.push({x:cx2,y:fl.y,z:r.z0+.45,sx:2.1,sy:1.25,sz:.7,m:"s"});
+          props.push({x:cx2,y:fl.y+1.25,z:r.z0+.3,sx:1.5,sy:WALL_H-1.25,sz:.42,hang:1,m:"s"});}}
     }
   }
   // los peldaños volados del caracol: cada uno es un escalón de 42 cm
   for(let i=0;i<spirals.length;i++){const sp=spirals[i];
-    props.push({x:sp.x,y:0,z:sp.z,sx:.2,sy:FLOOR_H,sz:.2,hang:1});   // el husillo, solo para el eco
+    props.push({x:sp.x,y:0,z:sp.z,sx:.2,sy:FLOOR_H,sz:.2,hang:1,m:"m"});  // el husillo, solo para el eco
     for(let k=1;k<=9;k++){
       const a=sp.turn*(k-9)*(Math.PI/4),h=k*.42;   // el noveno cae siempre mirando a +z
       props.push({x:sp.x+Math.sin(a)*1.02,y:h-.14,z:sp.z+Math.cos(a)*1.02,
@@ -615,7 +616,7 @@ function genProps(){
     const fl1=F[1];
     for(let i=0;i<fl1.doors.length;i++){const d=fl1.doors[i],hw=(d.w||DOOR_W)/2+.25;
       if(Math.abs(d.x-x)<sx/2+hw&&Math.abs(d.z-z)<sz/2+hw)return;}
-    props.push({x:x,y:FLOOR_H,z:z,sx:sx,sy:1.0,sz:sz});}
+    props.push({x:x,y:FLOOR_H,z:z,sx:sx,sy:1.0,sz:sz,m:"m"});}
   for(let i=0;i<holes.length;i++){
     const hq=holes[i];
     if(hq.trap||hq.spiral)continue;
@@ -644,7 +645,7 @@ const MEM_N=96;
 const memData=new Uint8Array(MEM_N*MEM_N*4);
 const memTex=new THREE.DataTexture(memData,MEM_N,MEM_N,THREE.RGBAFormat);
 memTex.needsUpdate=true; memTex.minFilter=THREE.LinearFilter; memTex.magFilter=THREE.LinearFilter;
-const uni={uTime:{value:0},uMem:{value:memTex},uTint:{value:new THREE.Vector3(1,1,1)},uMemK:{value:1},uGlowK:{value:1},
+const uni={uTime:{value:0},uMem:{value:memTex},uTint:{value:new THREE.Vector3(1,1,1)},uMemK:{value:1},uGlowK:{value:1},uRet:{value:1},uGrain:{value:new THREE.Vector3(26,26,26)},uRough:{value:.80},
   uEchoPos:{value:[]},uEchoT:{value:[]},uEchoS:{value:[]},uEchoR:{value:[]},uEchoC:{value:[]}};
 for(let i=0;i<MAX_ECHO;i++){uni.uEchoPos.value.push(new THREE.Vector3());
   uni.uEchoT.value.push(-99);uni.uEchoS.value.push(0);uni.uEchoR.value.push(1);
@@ -655,10 +656,12 @@ const mat=new THREE.ShaderMaterial({uniforms:uni,side:THREE.DoubleSide,
   "vN=normalize(mat3(modelMatrix)*normal);gl_Position=projectionMatrix*viewMatrix*wp;}"].join("\n"),
  fragmentShader:["precision highp float;varying vec3 vW;varying vec3 vN;",
   "uniform float uTime;uniform sampler2D uMem;uniform vec3 uTint;uniform float uMemK;uniform float uGlowK;",
+  "uniform float uRet;uniform vec3 uGrain;uniform float uRough;",
   "uniform vec3 uEchoPos["+MAX_ECHO+"];uniform float uEchoT["+MAX_ECHO+"];",
   "uniform float uEchoS["+MAX_ECHO+"];uniform float uEchoR["+MAX_ECHO+"];",
   "uniform vec3 uEchoC["+MAX_ECHO+"];",
-  "float ga(float v,float f){float a=abs(fract(v*2.0)-0.5);return smoothstep(0.5,0.5-f,a);}",
+  // grano estable en el espacio: el mismo punto del muro siempre devuelve lo mismo
+  "float h31(vec3 p){return fract(sin(dot(p,vec3(12.9898,78.233,37.719)))*43758.5453);}",
   "void main(){",
   " vec3 acc=vec3(0.0); float b=0.0;",
   " for(int i=0;i<"+MAX_ECHO+";i++){ if(uEchoS[i]<=0.0) continue;",
@@ -669,28 +672,42 @@ const mat=new THREE.ShaderMaterial({uniforms:uni,side:THREE.DoubleSide,
   "  float passed=(r-d)/"+ECHO_SPEED.toFixed(1)+";",
   "  float glow=max(0.0,1.0-passed/("+AFTERGLOW.toFixed(1)+"*uGlowK))*atten*uEchoS[i]*0.72;",
   "  float front=max(0.0,1.0-abs(d-r)/1.3)*atten*uEchoS[i];",
-  "  float v=max(glow,front);",
+  "  vec3 ld=normalize(uEchoPos[i]-vW);",
+  "  float ndl=max(0.0,dot(vN,ld));",            // una cara de canto apenas devuelve
+  "  float v=max(glow,front)*(0.20+0.90*ndl);",
   "  if(v>b){b=v;} acc+=uEchoC[i]*v; }",
   " float dist=length(vW-cameraPosition);",
-" float touch=max(0.0,1.0-dist/1.25); b=max(b,touch*touch*0.30);",
-" float f=clamp(0.06+dist*0.03,0.06,0.42);",
-  " vec3 n=abs(vN); float g;",
-  " if(n.y>0.5) g=max(ga(vW.x,f),ga(vW.z,f));",
-  " else if(n.x>0.5) g=max(ga(vW.y,f),ga(vW.z,f));",
-  " else g=max(ga(vW.x,f),ga(vW.y,f));",
-  // memoria: lo que ya has recorrido queda como un fantasma tenue
+  " float touch=max(0.0,1.0-dist/1.25); b=max(b,touch*touch*0.34);",
+  " float ret=b*uRet;",                          // cuánto devuelve ESTE material
+  // el grano del material: fino en la piedra, alargado en la madera, nada en la carne
+  " float n=0.0;",
+  " if(uRough>0.0){ n=h31(floor(vW*uGrain)+0.5)*0.62+h31(floor(vW*uGrain*2.9)+11.3)*0.38; }",
+  // la bruma: con retorno flojo solo se encienden los granos más receptivos.
+  // la superficie no aparece entera, se insinúa en polvo y se va cuajando.
+  " float th=n*uRough;",
+  " float lit=smoothstep(th,th+0.26,clamp(ret*2.3,0.0,1.0));",
+  " float body=ret*(0.62+0.38*(1.0-n*uRough));",
+  // el filo: donde la superficie se dobla, el eco se acumula y dibuja el borde
+  " float rim=pow(1.0-abs(dot(vN,normalize(cameraPosition-vW))),2.2);",
+  // la memoria: lo recorrido queda como polvo suspendido, más ralo aún
   " vec2 uv=vec2((vW.x+"+(MW/2+2).toFixed(1)+")/"+(MW+4).toFixed(1)+",(vW.z+"+(MH/2+2).toFixed(1)+")/"+(MH+4).toFixed(1)+");",
   " vec4 mm=texture2D(uMem,uv);",
-  " float seen = vW.y<3.9 ? mm.r : mm.g;",
-  " vec3 col=vec3(0.90,0.88,0.82);",
-  " if(b>0.001) col=normalize(acc+vec3(0.001))*1.05;",
-  " float lum=seen*0.10*uMemK*(0.25+0.9*g)+b*(0.24+0.95*g);",
+  " float seen=(vW.y<3.9?mm.r:mm.g)*uMemK;",
+  " float mlit=smoothstep(th*1.25,th*1.25+0.3,seen*0.55);",
+  " vec3 col=vec3(0.92,0.90,0.86);",
+  " if(b>0.001) col=normalize(acc+vec3(0.001))*1.04;",
+  " float lum=lit*body*1.45+rim*ret*0.62+mlit*seen*0.16;",
   " lum*=clamp(1.0-dist/60.0,0.0,1.0);",
   " gl_FragColor=vec4(col*uTint*lum,1.0);}"].join("\n")});
-/* mismo material, mismos uniformes compartidos, pero teñido: los vanos se leen de un vistazo */
-function tintedMat(r,g,b){
+/* No hay colores: el oído no los tiene. Lo que cambia de un material a otro es
+   cuánto te devuelve (ret), el tamaño y la forma de su grano, y cuánto se deshace
+   en bruma cuando el eco llega flojo. */
+function surfMat(ret,gx,gy,gz,rough){
   const u=Object.assign({},uni);
-  u.uTint={value:new THREE.Vector3(r,g,b)};
+  u.uTint={value:new THREE.Vector3(1,1,1)};
+  u.uRet={value:ret};
+  u.uGrain={value:new THREE.Vector3(gx,gy,gz)};
+  u.uRough={value:rough};
   return new THREE.ShaderMaterial({uniforms:u,side:THREE.DoubleSide,
     vertexShader:mat.vertexShader,fragmentShader:mat.fragmentShader});}
 /* la carne no es piedra: devuelve un eco corto, que se apaga en 0,6 s
@@ -701,11 +718,17 @@ function bodyMat(r,g,b){
   u.uTint={value:new THREE.Vector3(r,g,b)};
   u.uMemK={value:0};                       // la memoria es tu mapa, no un radar de cuerpos
   u.uGlowK={value:BODY_GLOW};
+  u.uRet={value:0.78};u.uRough={value:0};u.uGrain={value:new THREE.Vector3(0,0,0)};
   return new THREE.ShaderMaterial({uniforms:u,side:THREE.DoubleSide,
     vertexShader:mat.vertexShader,fragmentShader:mat.fragmentShader});}
-const matLamb=bodyMat(1.0,0.94,0.88);
-const matJamb=tintedMat(0.42,0.82,1.25);   // el marco del vano
-const matDoor=tintedMat(1.15,0.72,0.34);   // la hoja de la puerta
+const matLamb=bodyMat(1,1,1);
+/* piedra: grano fino y parejo · madera: veta larga en una dirección
+   tela: casi no vuelve y se deshace enseguida · metal: liso, duro, devuelve de más */
+const matWood =surfMat(0.86, 6,30,6, 0.74);
+const matCloth=surfMat(0.44, 11,11,11, 0.34);
+const matMetal=surfMat(1.30, 60,60,60, 0.20);
+const matJamb =surfMat(1.45, 55,55,55, 0.16);   // el marco devuelve como el metal: se palpa
+const matDoor =surfMat(0.76, 6,26,6, 0.80);     // la hoja, madera basta
 
 function haloTex(r,g,b,tight){
   const c=document.createElement("canvas");c.width=c.height=128;
@@ -751,12 +774,12 @@ function bFlush(B,material){
   g.setAttribute("position",new THREE.BufferAttribute(new Float32Array(B.p),3));
   g.setAttribute("normal",new THREE.BufferAttribute(new Float32Array(B.n),3));
   const m=new THREE.Mesh(g,material);m.frustumCulled=false;world.add(m);return m;}
-let BS=null,BJ=null;
+let BS=null,BJ=null,BW=null,BC=null,BM=null;
 function box(w,h,d,x,y,z){bBox(BS,w,h,d,x,y,z);}
 function build3D(){
   if(world)scene.remove(world);
   world=new THREE.Group();scene.add(world);
-  BS=batch();BJ=batch();
+  BS=batch();BJ=batch();BW=batch();BC=batch();BM=batch();
   box(MW+1,.4,MH+1,0,-.2,0);
   for(let i=0;i<slabs.length;i++){const s=slabs[i];
     box(s.x1-s.x0,SLAB_T,s.z1-s.z0,(s.x0+s.x1)/2,FLOOR_H-SLAB_T/2,(s.z0+s.z1)/2);}
@@ -806,8 +829,10 @@ function build3D(){
   for(let s=0;s<stairs.length;s++){const st=stairs[s];
     for(let i=0;i<st.steps.length;i++){const p=st.steps[i];box(p.w,p.h,p.d,p.x,p.h/2,p.z+p.d/2);}}
   for(let i=0;i<props.length;i++){const q=props[i];
-    box(q.sx,q.sy,q.sz,q.x,q.y+q.sy/2,q.z);}
-  bFlush(BS,mat);bFlush(BJ,matJamb);BS=null;BJ=null;
+    const B=(q.m==="f")?BC:((q.m==="m")?BM:((q.m==="s")?BS:BW));
+    bBox(B,q.sx,q.sy,q.sz,q.x,q.y+q.sy/2,q.z);}
+  bFlush(BS,mat);bFlush(BJ,matJamb);bFlush(BW,matWood);bFlush(BC,matCloth);bFlush(BM,matMetal);
+  BS=null;BJ=null;BW=null;BC=null;BM=null;
   if(!HALO_RED){HALO_RED=haloTex(214,64,56,true);HALO_AMBER=haloTex(226,150,70);HALO_DARK=haloTex(150,40,36,true);}
   for(let i=0;i<ammoSpots.length;i++){const a=ammoSpots[i];
     a.mesh=new THREE.Mesh(new THREE.BoxGeometry(.18,.09,.28),mat);
@@ -1054,7 +1079,7 @@ const lambs=[];
 let phase="entry",running=false,seed=0,winner=null,tStart=0;
 const echoes=[];
 let vy=0,grounded=true,crouch=false,eyeH=EYE,sens=1.0;
-let pulseCharge=0,pulseHeld=false,pulseAperture=1,pulseCD=0,lastPulse=-99;
+let pulseCharge=0,pulseHeld=false,pulseAperture=1,pulseCD=0,lastPulse=-99,shotCD=0;
 let dbgOn=false,pulseCount=0;
 function addEcho(x,y,z,s,Rr,col){
   echoes.push({x:x,y:y,z:z,t:now(),s:s,R:Rr,c:col||[0.90,0.88,0.82]});
@@ -1116,7 +1141,7 @@ function handle(m,from){
     if(phase!=="play")renderLobby();return;}
   if(m.t==="s"){
     let p=peers[m.id];if(!p)p=peers[m.id]={mesh:avatar()};
-    p.x=m.x;p.y=m.y;p.z=m.z;p.yaw=m.yaw;p.dead=m.d;p.mv=m.mv;p.cr=m.cr;p.lastMove=m.mv?now():(p.lastMove||0);
+    p.x=m.x;p.y=m.y;p.z=m.z;p.yaw=m.yaw;p.dead=m.d;p.mv=m.mv;p.cr=m.cr;p.g=m.g|0;p.lastMove=m.mv?now():(p.lastMove||0);
     return;}
   if(m.t==="ev"){remoteEvent(m);return;}
   if(m.t==="L"){applyLambs(m);return;}
@@ -1330,30 +1355,38 @@ function nearDoor(){let b=null,bd=1e9;
   return bd<2.0?b:null;}
 function toggleDoor(){const d=nearDoor();if(!d)return;
   d.open=!d.open;ev({kind:"door",x:d.x,y:me.y+1.2,z:d.z,o:d.open});}
-function aimTarget(maxD,maxAng){
+/* lat: margen lateral en metros. Con él el disparo no tiene alcance, pero
+   a cuarenta metros hay que estar apuntando a un cuerpo, no a un sector. */
+function aimTarget(maxD,maxAng,lat){
   const f={x:Math.sin(me.yaw),z:Math.cos(me.yaw)};
   let best=null,bd=1e9,kind=null,idx=-1;
+  function hits(x,z,L){
+    const c=clamp(((x-me.x)/L)*f.x+((z-me.z)/L)*f.z,-1,1);
+    if(c<=0)return false;                                   // está detrás
+    if(lat)return L*Math.sqrt(Math.max(0,1-c*c))<lat;        // separación real del disparo
+    return Math.acos(c)*180/Math.PI<maxAng;
+  }
   for(const id in peers){const p=peers[id];
     if(p.dead||p.x===undefined)continue;
     if(Math.abs(p.y-me.y)>1.8)continue;
-    const dx=p.x-me.x,dz=p.z-me.z,L=Math.hypot(dx,dz);
+    const L=Math.hypot(p.x-me.x,p.z-me.z);
     if(L>maxD||L<.15)continue;
-    const ang=Math.acos(clamp((dx/L)*f.x+(dz/L)*f.z,-1,1))*180/Math.PI;
-    if(ang<maxAng&&occlusion(me.x,me.y,me.z,p.x,p.y,p.z)===0&&L<bd){bd=L;best=id;kind="player";}}
+    if(hits(p.x,p.z,L)&&occlusion(me.x,me.y,me.z,p.x,p.y,p.z)===0&&L<bd){bd=L;best=id;kind="player";}}
   for(let i=0;i<lambs.length;i++){const L2=lambs[i];
     if(!L2||!L2.alive)continue;
     if(Math.abs(L2.y-me.y)>1.8)continue;
-    const dx=L2.x-me.x,dz=L2.z-me.z,L=Math.hypot(dx,dz);
+    const L=Math.hypot(L2.x-me.x,L2.z-me.z);
     if(L>maxD||L<.15)continue;
-    const ang=Math.acos(clamp((dx/L)*f.x+(dz/L)*f.z,-1,1))*180/Math.PI;
-    if(ang<maxAng&&occlusion(me.x,me.y,me.z,L2.x,L2.y,L2.z)===0&&L<bd){bd=L;best=null;kind="lamb";idx=i;}}
+    if(hits(L2.x,L2.z,L)&&occlusion(me.x,me.y,me.z,L2.x,L2.y,L2.z)===0&&L<bd){bd=L;best=null;kind="lamb";idx=i;}}
   return{kind:kind,id:best,i:idx,d:bd};
 }
 function shoot(){
-  if(me.dead||me.ammo<=0)return;
+  if(me.dead||me.ammo<=0||shotCD>0)return;
+  shotCD=SHOT_GAP;
   me.ammo--;drawAmmo();
   ev({kind:"shot",x:me.x,y:me.y+1.4,z:me.z});
-  const t=aimTarget(24,5.5);
+  // sin límite de alcance: lo que decide es la puntería y que no haya nada en medio
+  const t=aimTarget(999,0,0.55);
   if(t.kind==="player")claimKill(t.id);
   else if(t.kind==="lamb")claimLamb(t.i);
 }
@@ -1474,7 +1507,7 @@ function entryRules(){
   return "<div class='rules'>"+
     "<p><b>Ganas bebiéndote dos corderos.</b> Matar no puntúa: solo quita de en medio un rato.</p>"+
     "<p>Matar al cordero tampoco cuenta: hay que <b>beber</b>, y beber tarda tres segundos en los que haces ruido y no puedes defenderte.</p>"+
-    "<p>Tienes <b>tres cuerpos</b> y <b>dos balas</b>. No hay más. Un disparo mata a veinticuatro metros y se oye en media casa; el mordisco también mata y apenas suena, pero hay que llegar a tocar a la presa.</p>"+
+    "<p>Tienes <b>tres cuerpos</b> y <b>dos balas</b>. No hay más. Un disparo mata a cualquier distancia si apuntas bien, y se oye en media casa; el mordisco también mata y apenas suena, pero hay que llegar a tocar a la presa.</p>"+
    "</div>";
 }
 function renderEntry(){
@@ -1566,8 +1599,8 @@ function renderLobby(){
    "<div class='rules'>"+
     "<p><b>Se gana bebiendo de dos corderos.</b> Matar no puntúa: solo quita a alguien de en medio cinco segundos y le gasta un cuerpo. Tienes <b>tres cuerpos</b> y <b>dos balas</b> — las cajas de la casa te dan una, y nunca pasas de dos.</p>"+
     "<p><b>Botón derecho mantenido</b> carga el chillido: susurro, llamada o chillido. Cuanto más cargas, más lejos ves — y más lejos te oyen, que siempre es más de lo que tú alcanzas a ver. La <b>rueda</b> abre o cierra el cono.</p>"+
-    "<p>Un <b>disparo mata</b> a veinticuatro metros, pero hay que tenerlo a tiro limpio y el estruendo se oye en media casa. El <b>mordisco</b> también mata y apenas hace ruido, pero tienes que llegar a tocarlo.</p>"+
-    "<p>Los chillidos de los demás <b>también te iluminan a ti</b>, y salen de su cabeza: oír un chillido ajeno es saber dónde está. Quedarte quieto <b>ya no te esconde</b> — devuelves eco igual, solo que más flojo. Lo que esconde es ponerte detrás de algo: un armario, un biombo, un cortinaje.</p>"+
+    "<p>Un <b>disparo mata</b> a cualquier distancia, pero hay que tenerlo a tiro limpio, apuntar fino y esperar medio segundo entre tiro y tiro. El estruendo se oye en media casa. El <b>mordisco</b> también mata y apenas hace ruido, pero tienes que llegar a tocarlo.</p>"+
+    "<p>Los chillidos de los demás <b>también te iluminan a ti</b>, y salen de su cabeza: oír un chillido ajeno es saber dónde está. Cuanto más cuidas el paso, menos devuelves: <b>corriendo se te ve</b>, quieto eres una mancha, <b>con Shift casi nada</b> y agachado casi nada de nada. Pero nunca cero — un chillido fuerte y cercano te encuentra igual. Lo que sí esconde del todo es ponerte detrás de algo: un armario, un biombo, un cortinaje.</p>"+
     "<p>Lo que ves <b>se te olvida</b>: el relieve de la casa se apaga en unos dieciséis segundos. De un cuerpo no queda ni eso — medio segundo y se acabó.</p>"+
    "</div>"+
    "<div class='sens'><span>Sensibilidad</span><input type='range' id='sens' min='30' max='250' value='"+Math.round(sens*100)+"'><span id='sensv'>"+sens.toFixed(2)+"×</span></div>"+
@@ -1676,7 +1709,7 @@ function startMatch(){
   phase="play";running=true;winner=null;tStart=now();
   memData.fill(0);memTex.needsUpdate=true;
   echoes.length=0;
-  me.ammo=START_AMMO;me.lambs=0;me.kills=0;me.lives=LIVES;me.out=false;me.dead=false;me.drinking=0;
+  me.ammo=START_AMMO;me.lambs=0;me.kills=0;me.lives=LIVES;me.out=false;me.dead=false;me.drinking=0;shotCD=0;
   for(const id in peers){const P=peers[id];P.lambs=0;P.kills=0;P.lives=LIVES;P.out=false;}
   const s=(spawnPick!=null&&spawns[spawnPick])?spawns[spawnPick]:farSpawn();
   spawnPick=null;
@@ -1716,6 +1749,7 @@ function frameBody(){
       if(edgeSteer)me.yaw-=edgeSteer*2.4*dt*sens;
       crouch=!!keys["c"];
       const gait=crouch?2:(keys["shift"]?1:0),G=GAIT[gait];
+      me.gait=gait;
       let mx=0,mz=0;
       if(keys["w"])mz+=1;if(keys["s"])mz-=1;if(keys["a"])mx-=1;if(keys["d"])mx+=1;
       const moving=!!(mx||mz);
@@ -1774,6 +1808,7 @@ function frameBody(){
       // carga del pulso
       if(pulseHeld){pulseCharge=Math.min(1,pulseCharge+dtr*0.75);}
       if(pulseCD>0)pulseCD=Math.max(0,pulseCD-dtr);
+      if(shotCD>0)shotCD=Math.max(0,shotCD-dtr);
     }
     // corderos: el anfitrión los mueve y los hace balar
     if(isHost){
@@ -1843,7 +1878,7 @@ function frameBody(){
       tone(54,.18,.13,"sine");tone(40,.26,.09,"sine",null,.15);}
     // red
     if(t>netNext){netNext=t+1/15;
-      send({t:"s",id:myId,x:me.x,y:me.y,z:me.z,yaw:me.yaw,d:me.dead,cr:crouch?1:0,
+      send({t:"s",id:myId,x:me.x,y:me.y,z:me.z,yaw:me.yaw,d:me.dead,cr:crouch?1:0,g:me.gait|0,
             mv:!!(keys["w"]||keys["a"]||keys["s"]||keys["d"])});}
     // HUD
     let vid="";for(let v=0;v<LIVES;v++)vid+=(v<me.lives?"<b class='blood'>●</b>":"<span style='opacity:.3'>●</span>");
@@ -1855,6 +1890,7 @@ function frameBody(){
     el("hintR").innerHTML="Planta <b>"+(floorOf(me.y)===0?"baja":"1ª")+"</b>"+
       (pulseCD>0?"<br>Garganta <b>"+pulseCD.toFixed(1)+"</b>":"");
     const P=PULSE[pulseLevel()];
+    {const cr2=el("cross");if(cr2)cr2.style.opacity=(shotCD>0?0.28:(me.ammo>0?1:0.45));}
     el("pulseUI").className="pulse"+(pulseHeld?" on":"");
     el("pulseFill").style.width=(pulseCharge*100).toFixed(0)+"%";
     el("pulseInt").textContent=P.n;
@@ -1871,13 +1907,17 @@ function frameBody(){
          +(lastErr?"  ⚠ "+lastErr:""))
       : "";
   }
-  // los cuerpos solo devuelven eco si se mueven: quieto eres invisible
+  /* Cuánto devuelve un cuerpo ajeno, de más a menos:
+       corriendo 0,52 · quieto de pie 0,30 · despacio 0,15
+       quieto agachado 0,14 · agachado en movimiento 0,08
+     Con 0,15 solo te encuentra un chillido fuerte y de cerca: es un rastro,
+     no una silueta. Cuanto más te encoges y más cuidas el paso, menos vuelves. */
   for(const id in peers){const p=peers[id];if(!p.mesh||p.x===undefined)continue;
     p.mesh.position.set(p.x,p.y,p.z);p.mesh.rotation.y=p.yaw||0;
     p.mesh.scale.y=p.cr?.62:1;
+    const mov=(t-(p.lastMove||0)<0.5),g=p.g|0;
+    const k=mov?(g===2?0.08:(g===1?0.15:0.52)):(p.cr?0.14:0.30);
     p.mesh.visible=running&&!p.dead&&bodySeen(p.x,p.y,p.z,!!p.cr);
-    // quieto devuelve eco igual, pero flojo: la carne absorbe y no delata movimiento
-    const k=(t-(p.lastMove||0)<0.5)?1:(p.cr?.26:.38);
     if(p.mesh.userData.mat)p.mesh.userData.mat.uniforms.uTint.value.set(k,k*.94,k*.88);}
   for(let i=0;i<lambs.length;i++){const L=lambs[i];
     if(!L||!L.mesh)continue;
