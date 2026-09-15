@@ -73,16 +73,7 @@ button.ghost{background:transparent;color:var(--dim);border:1px solid var(--line
 button.ghost:hover{color:var(--bone);border-color:var(--dim);filter:none}
 .code{font-family:var(--disp);font-size:38px;font-weight:700;letter-spacing:.16em;color:var(--blood);margin:2px 0 10px}
 .status{font-size:11.5px;color:var(--dimmer);line-height:1.7;margin-top:12px}
-.status.err{color:var(--blood);font-size:13px;border-left:2px solid var(--blood);padding-left:10px}
-.status.good{color:var(--mint)}
-.who{display:flex;flex-direction:column;gap:7px;margin:10px 0 0;font-size:13px}
-.who>div{display:flex;align-items:center;gap:9px;color:var(--bone)}
-.who .dot{width:7px;height:7px;border-radius:50%;background:var(--mint);flex:none}
-.who .dot.off{background:var(--dimmer)}
-.who .rol{margin-left:auto;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dimmer)}
-.empty{font-size:12.5px;color:var(--ember);line-height:1.7;margin:10px 0 0}
-.inv{display:flex;gap:8px;align-items:center;margin-top:2px}
-.inv button{margin:0}
+.status.err{color:var(--blood)}
 .rules{border-left:2px solid var(--blood);padding-left:14px;margin:18px 0}
 .rules p{margin:0 0 9px;font-size:13px;line-height:1.6;color:var(--dim)}
 .rules b{color:var(--bone)}
@@ -109,7 +100,6 @@ button.ghost:hover{color:var(--bone);border-color:var(--dim);filter:none}
   <div class="flash" id="flash"></div>
   <div class="row"><div class="tag" id="hintL"></div><div class="tag right" id="hintR"></div></div>
 </div>
-<!-- Baby Vampires · v9 · 15 sep -->
 <div class="veil" id="veil"><div class="card" id="card"></div></div>
 <div class="intro" id="intro"><canvas id="introCv"></canvas><div class="introHint" id="introHint">haz clic para entrar</div></div>
 
@@ -132,7 +122,6 @@ const EYE=1.62,EYE_CROUCH=1.02,RAD=.32,JUMP_V=6.0;
 const MAX_ECHO=14,ECHO_SPEED=10,AFTERGLOW=1.6;
 const MEM_TICK=0.25, MEM_FADE=22;   // segundos hasta olvidar del todo
 const SOUND_MS=343;                    // velocidad del sonido, para los retornos
-const VERSION="v15 · 15 sep";         // sube con cada cambio que pides: así sabes qué juegas
 const LAMBS_TO_WIN=2;                 // solo se gana bebiendo
 const LIVES=3;                        // tres cuerpos y se acabó
 const START_AMMO=2, MAX_AMMO=2, AMMO_PICKUPS=8;
@@ -153,7 +142,6 @@ const FLOORS=[{n:"madera",v:1.0},{n:"alfombra",v:.35},{n:"piedra",v:1.5}];
 /* ══════════ mansión ══════════ */
 let F=[null,null],stairs=[],holes=[],slabs=[],ammoSpots=[],spawns=[],props=[],trapdoors=[],spirals=[],nooks=[];
 let hall=null,hallVoid=null,mainStair=null;
-let propsSolid=[],propsStep=[];   // los que de verdad estorban, y los que se pisan
 let occ=[null,null],GW=0,GH=0,GS=0.5;
 function bsp(x0,z0,x1,z1,d,out){
   const w=x1-x0,h=z1-z0;
@@ -372,11 +360,6 @@ function genMansion(seed){
   slabs=[{x0:-MW/2-.5,z0:-MH/2-.5,x1:MW/2+.5,z1:MH/2+.5}];
   for(let i=0;i<holes.length;i++)slabs=subtract(slabs,holes[i]);
   buildWalls(F[0]);buildWalls(F[1]);buildOcc();genProps();buildPropOcc();
-  propsSolid=[];propsStep=[];
-  for(let i=0;i<props.length;i++){const q=props[i];
-    if(q.hang)continue;
-    propsSolid.push(q);
-    if(q.step)propsStep.push(q);}
   for(let f=0;f<2;f++){
     const fl=F[f],bag=[];
     for(let i=0;i<fl.rooms.length;i++)bag.push(AK[(i+f*3)%AK.length]);
@@ -416,8 +399,7 @@ function inStair(x,z,m){
     if(x>st.x-st.w/2-m&&x<st.x+st.w/2+m&&z>st.z0-m&&z<st.z0+st.len+m+1.2)return true;}
   return false;}
 function propAt(x,z,y){
-  const L=propsSolid.length?propsSolid:props;
-  for(let i=0;i<L.length;i++){const q=L[i];
+  for(let i=0;i<props.length;i++){const q=props[i];
     if(q.hang||Math.abs(q.y-y)>1.2)continue;
     if(Math.abs(q.x-x)<q.sx/2+.5&&Math.abs(q.z-z)<q.sz/2+.5)return true;}
   return false;}
@@ -704,20 +686,12 @@ const matLamb=bodyMat(1.0,0.94,0.88);
 const matJamb=tintedMat(0.42,0.82,1.25);   // el marco del vano
 const matDoor=tintedMat(1.15,0.72,0.34);   // la hoja de la puerta
 
-function haloTex(r,g,b,tight){
+function haloTex(r,g,b){
   const c=document.createElement("canvas");c.width=c.height=128;
-  const x=c.getContext("2d"),gr=x.createRadialGradient(64,64,1,64,64,62);
-  if(tight){                                  // marca puntual: casi no se derrama
-    gr.addColorStop(0,"rgba("+r+","+g+","+b+",1.0)");
-    gr.addColorStop(.10,"rgba("+r+","+g+","+b+",0.62)");
-    gr.addColorStop(.24,"rgba("+r+","+g+","+b+",0.13)");
-    gr.addColorStop(.45,"rgba("+r+","+g+","+b+",0.02)");
-    gr.addColorStop(1,"rgba("+r+","+g+","+b+",0)");
-  } else {
-    gr.addColorStop(0,"rgba("+r+","+g+","+b+",0.95)");
-    gr.addColorStop(.35,"rgba("+r+","+g+","+b+",0.32)");
-    gr.addColorStop(1,"rgba("+r+","+g+","+b+",0)");
-  }
+  const x=c.getContext("2d"),gr=x.createRadialGradient(64,64,2,64,64,62);
+  gr.addColorStop(0,"rgba("+r+","+g+","+b+",0.95)");
+  gr.addColorStop(.35,"rgba("+r+","+g+","+b+",0.32)");
+  gr.addColorStop(1,"rgba("+r+","+g+","+b+",0)");
   x.fillStyle=gr;x.fillRect(0,0,128,128);
   return new THREE.CanvasTexture(c);}
 let HALO_RED=null,HALO_AMBER=null,HALO_DARK=null;
@@ -805,7 +779,7 @@ function build3D(){
   for(let i=0;i<props.length;i++){const q=props[i];
     box(q.sx,q.sy,q.sz,q.x,q.y+q.sy/2,q.z);}
   bFlush(BS,mat);bFlush(BJ,matJamb);BS=null;BJ=null;
-  if(!HALO_RED){HALO_RED=haloTex(214,64,56,true);HALO_AMBER=haloTex(226,150,70);HALO_DARK=haloTex(150,40,36,true);}
+  if(!HALO_RED){HALO_RED=haloTex(210,70,60);HALO_AMBER=haloTex(226,150,70);HALO_DARK=haloTex(150,40,36);}
   for(let i=0;i<ammoSpots.length;i++){const a=ammoSpots[i];
     a.mesh=new THREE.Mesh(new THREE.BoxGeometry(.18,.09,.28),mat);
     a.mesh.position.set(a.x,a.y+.09,a.z);world.add(a.mesh);
@@ -814,17 +788,12 @@ function build3D(){
 }
 /* memoria del mapa: marcha de rayos sobre la rejilla */
 const MEM_DECAY=Math.max(1,Math.round(255/(MEM_FADE/MEM_TICK)));
-let decayBand=0;
-const DEC=MEM_DECAY*4;                 // se recorre una franja por tick
 function decayMemory(){
   let any=false;
-  const band=memData.length>>2,q=(band>>2)<<2;
-  const from=decayBand*q,to=(decayBand===3)?memData.length:from+q;
-  decayBand=(decayBand+1)&3;
-  for(let i=from;i<to;i+=4){
+  for(let i=0;i<memData.length;i+=4){
     const r=memData[i],g=memData[i+1];
-    if(r>0){memData[i]=r>DEC?r-DEC:0;any=true;}
-    if(g>0){memData[i+1]=g>DEC?g-DEC:0;any=true;}}
+    if(r>0){memData[i]=r>MEM_DECAY?r-MEM_DECAY:0;any=true;}
+    if(g>0){memData[i+1]=g>MEM_DECAY?g-MEM_DECAY:0;any=true;}}
   if(any)memTex.needsUpdate=true;}
 function markMemory(px,pz,f,Rr){
   const N=200,step=GS;
@@ -857,7 +826,8 @@ function stairTop(x,z){let h=-1;
 function groundAt(x,z,maxTop){
   let g=0;const st=stairTop(x,z);
   if(st>0&&st<=maxTop)g=Math.max(g,st);
-  for(let i=0;i<propsStep.length;i++){const q=propsStep[i];
+  for(let i=0;i<props.length;i++){const q=props[i];
+    if(q.hang||!q.step)continue;
     if(x<q.x-q.sx/2-.1||x>q.x+q.sx/2+.1||z<q.z-q.sz/2-.1||z>q.z+q.sz/2+.1)continue;
     const top=q.y+q.sy;
     if(top<=maxTop&&top>g)g=top;}
@@ -878,56 +848,9 @@ function propBlocks(q,x,z,y){
   const cz=z<q.z-q.sz/2?q.z-q.sz/2:(z>q.z+q.sz/2?q.z+q.sz/2:z);
   const dx=x-cx,dz=z-cz;
   return dx*dx+dz*dz<RAD*RAD;}
-/* los corderos tienen su propio empujón: si se meten entre un mueble y la pared,
-   salen solos en vez de quedarse temblando en el sitio */
-const LRAD=0.34;
-function lambPush(L){
-  const fl=F[floorOf(L.y)];
-  for(let it=0;it<6;it++){
-    let fixed=false;
-    const PS=propsSolid.length?propsSolid:props;
-    for(let i=0;i<PS.length;i++){const q=PS[i];
-      if(q.step)continue;
-      if(L.y+.55>=q.y+q.sy||L.y>q.y+2.6||L.y<q.y-2.0)continue;
-      const cx=clamp(L.x,q.x-q.sx/2,q.x+q.sx/2),cz=clamp(L.z,q.z-q.sz/2,q.z+q.sz/2);
-      const dx=L.x-cx,dz=L.z-cz,d2=dx*dx+dz*dz;
-      if(d2>=LRAD*LRAD)continue;
-      if(d2>1e-7){const d=Math.sqrt(d2),pp=LRAD-d+.01;L.x+=dx/d*pp;L.z+=dz/d*pp;}
-      else{const a=(q.x+q.sx/2)-L.x,b2=L.x-(q.x-q.sx/2),c2=(q.z+q.sz/2)-L.z,d3=L.z-(q.z-q.sz/2);
-        const m=Math.min(a,b2,c2,d3);
-        if(m===a)L.x=q.x+q.sx/2+LRAD+.01;else if(m===b2)L.x=q.x-q.sx/2-LRAD-.01;
-        else if(m===c2)L.z=q.z+q.sz/2+LRAD+.01;else L.z=q.z-q.sz/2-LRAD-.01;}
-      fixed=true;}
-    for(let i=0;i<fl.walls.length;i++){const w=fl.walls[i];
-      if(!segBlocks(w,L.x,L.z))continue;
-      const v=Math.abs(w.x1-w.x0)<.01,lim=LRAD+WALL_T/2+.01;
-      if(v){const off=L.x-w.x0;L.x=w.x0+(off>=0?lim:-lim);}
-      else{const off=L.z-w.z0;L.z=w.z0+(off>=0?lim:-lim);}
-      fixed=true;}
-    L.x=clamp(L.x,-MW/2+.6,MW/2-.6);L.z=clamp(L.z,-MH/2+.6,MH/2-.6);
-    if(!fixed)break;}
-}
-/* un sitio donde un cordero puede estar: ni dentro de un mueble ni sobre un hueco */
-function lambSpot(sep,skip){
-  const S=sep===undefined?15:sep;
-  for(let tr=0;tr<60;tr++){
-    const s2=spawns[Math.floor(Math.random()*spawns.length)];
-    const x=s2.x+rf(-1,1),z=s2.z+rf(-1,1);
-    if(holeNear(x,z,1.4))continue;
-    if(blocked(x,z,s2.y))continue;
-    // ni dos corderos en la misma sala: si no, se ganan dos de una sentada
-    let far=true,lim=S*(tr<40?1:0.55);
-    for(let i=0;i<lambs.length;i++){const L=lambs[i];
-      if(!L||L===skip||L.drained||L.x===undefined)continue;
-      if(Math.hypot(L.x-x,L.z-z)+Math.abs(L.y-s2.y)*2<lim)far=false;}
-    if(!far)continue;
-    return{x:x,y:s2.y,z:z};}
-  const s3=spawns[Math.floor(Math.random()*spawns.length)];
-  return{x:s3.x,y:s3.y,z:s3.z};
-}
 function blocked(x,z,y){
   if(x<-MW/2+.2||x>MW/2-.2||z<-MH/2+.2||z>MH/2-.2)return true;
-  for(let i=0;i<propsSolid.length;i++)if(propBlocks(propsSolid[i],x,z,y))return true;
+  for(let i=0;i<props.length;i++)if(propBlocks(props[i],x,z,y))return true;
   const fl=F[floorOf(y)];
   for(let i=0;i<fl.walls.length;i++)if(segBlocks(fl.walls[i],x,z))return true;
   for(let i=0;i<fl.doors.length;i++){const d=fl.doors[i];if(d.open)continue;
@@ -940,7 +863,7 @@ function depenetrate(){
   for(let i=0;i<fl.doors.length;i++)if(!fl.doors[i].open)segs.push(doorSeg(fl.doors[i]));
   for(let it=0;it<5;it++){
     let fixed=false;
-    for(let i=0;i<propsSolid.length;i++){const q=propsSolid[i];
+    for(let i=0;i<props.length;i++){const q=props[i];
       if(!propBlocks(q,me.x,me.z,me.y))continue;
       const cx=clamp(me.x,q.x-q.sx/2,q.x+q.sx/2),cz=clamp(me.z,q.z-q.sz/2,q.z+q.sz/2);
       const dx=me.x-cx,dz=me.z-cz,d2=dx*dx+dz*dz;
@@ -1005,8 +928,6 @@ function panAt(x,y,z){
   p.connect(master);return p;}
 function worldSound(x,y,z,make){
   if(!AC)return;
-  const ddx=x-me.x,ddz=z-me.z,ddy=y-me.y;
-  if(ddx*ddx+ddz*ddz+ddy*ddy>52*52)return;     // inaudible: ni se monta
   const n=occlusion(x,y,z,me.x,me.y,me.z);
   const pan=AC.createPanner();pan.panningModel="HRTF";pan.distanceModel="inverse";
   pan.refDistance=1.6;pan.rolloffFactor=1.05;
@@ -1022,26 +943,15 @@ function tone(f,d,v,ty,dest,when){
   g.gain.setValueAtTime(.0001,t0);g.gain.exponentialRampToValueAtTime(Math.max(.0002,v),t0+.005);
   g.gain.exponentialRampToValueAtTime(.0001,t0+d);
   o.connect(g);g.connect(dest||master);o.start(t0);o.stop(t0+d+.03);}
-let NOISE=null;
-function noiseBuf(){
-  if(NOISE)return NOISE;
-  const len=Math.floor(AC.sampleRate*1.2);
-  NOISE=AC.createBuffer(1,len,AC.sampleRate);
-  const ch=NOISE.getChannelData(0);
-  for(let i=0;i<len;i++)ch[i]=Math.random()*2-1;
-  return NOISE;}
 function noiseB(d,v,cut,dest,when){
   if(!AC)return;const t0=AC.currentTime+(when||0);
-  // un solo buffer de ruido para todo el juego: antes cada golpe generaba miles de muestras
-  const s=AC.createBufferSource();s.buffer=noiseBuf();s.loop=true;
-  s.loopStart=0;s.loopEnd=1.2;
+  const len=Math.max(1,Math.floor(AC.sampleRate*d));
+  const buf=AC.createBuffer(1,len,AC.sampleRate),ch=buf.getChannelData(0);
+  for(let i=0;i<len;i++)ch[i]=(Math.random()*2-1)*Math.pow(1-i/len,3);
+  const s=AC.createBufferSource();s.buffer=buf;
   const f=AC.createBiquadFilter();f.type="lowpass";f.frequency.value=cut;
-  const g=AC.createGain();
-  const vv=Math.max(.0002,v);
-  g.gain.setValueAtTime(vv,t0);
-  g.gain.exponentialRampToValueAtTime(vv*.0015,t0+Math.max(.03,d));
-  s.connect(f);f.connect(g);g.connect(dest||master);
-  s.start(t0,Math.random()*1.1);s.stop(t0+Math.max(.03,d)+.02);}
+  const g=AC.createGain();g.gain.value=v;
+  s.connect(f);f.connect(g);g.connect(dest||master);s.start(t0);}
 
 /* ══════════ estado ══════════ */
 const me={id:"me",x:0,y:0,z:0,yaw:0,pitch:0,name:"",dead:false,respawnAt:0,
@@ -1061,10 +971,7 @@ function addEcho(x,y,z,s,Rr,col){
 let peer=null,isHost=false,hostConn=null,myId="me",myCode="";
 const conns={};
 const PREFIX="neofito-";
-function setStatus(t,e){const s=el("status");
-  if(s){s.textContent=t;s.className="status"+(e===true||e==="err"?" err":(e==="good"?" good":""));}}
-let lobbyNote="",lobbyNoteAt=0;
-function note(t){lobbyNote=t;lobbyNoteAt=now();if(phase==="lobby"||phase==="over")renderLobby();}
+function setStatus(t,e){const s=el("status");if(s){s.textContent=t;s.className="status"+(e?" err":"");}}
 function code4(){const A="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";let s="";
   for(let i=0;i<4;i++)s+=A[Math.floor(Math.random()*A.length)];return s;}
 function send(m,except){
@@ -1076,37 +983,30 @@ function avatar(){
   const h=new THREE.Mesh(new THREE.BoxGeometry(.26,.28,.26),m);h.position.y=1.4;
   g.add(b);g.add(h);g.visible=false;g.userData.mat=m;scene.add(g);return g;}
 function lambMesh(){
-  const g=new THREE.Group(),lm=bodyMat(1,.94,.88);
-  const b=new THREE.Mesh(new THREE.BoxGeometry(.5,.45,.85),lm);b.position.y=.45;
-  const h=new THREE.Mesh(new THREE.BoxGeometry(.24,.24,.3),lm);h.position.set(0,.62,.5);
-  const l=new THREE.Mesh(new THREE.BoxGeometry(.09,.4,.09),lm);l.position.set(.18,.22,.3);
-  const l2=new THREE.Mesh(new THREE.BoxGeometry(.09,.4,.09),lm);l2.position.set(-.18,.22,-.3);
-  g.userData.mat=lm;
+  const g=new THREE.Group();
+  const b=new THREE.Mesh(new THREE.BoxGeometry(.5,.45,.85),matLamb);b.position.y=.45;
+  const h=new THREE.Mesh(new THREE.BoxGeometry(.24,.24,.3),matLamb);h.position.set(0,.62,.5);
+  const l=new THREE.Mesh(new THREE.BoxGeometry(.09,.4,.09),matLamb);l.position.set(.18,.22,.3);
+  const l2=new THREE.Mesh(new THREE.BoxGeometry(.09,.4,.09),matLamb);l2.position.set(-.18,.22,-.3);
   g.add(b);g.add(h);g.add(l);g.add(l2);
-  if(!HALO_RED){HALO_RED=haloTex(214,64,56,true);HALO_AMBER=haloTex(226,150,70);HALO_DARK=haloTex(150,40,36,true);}
-  const sp=halo(HALO_RED,1.5,true,.5);sp.position.y=.55;g.add(sp);g.userData.halo=sp;
+  if(!HALO_RED){HALO_RED=haloTex(210,70,60);HALO_AMBER=haloTex(226,150,70);HALO_DARK=haloTex(150,40,36);}
+  const sp=halo(HALO_RED,3.0,true,.5);sp.position.y=.55;g.add(sp);g.userData.halo=sp;
   g.visible=false;scene.add(g);return g;}
 function hook(c){
   c.on("data",function(m){handle(m,c.peer);});
   c.on("close",function(){
-    if(isHost&&peers[c.peer]&&phase!=="play")note("Se ha ido "+(peers[c.peer].name||"alguien")+".");
     delete conns[c.peer];
     if(peers[c.peer]&&peers[c.peer].mesh)scene.remove(peers[c.peer].mesh);
     delete peers[c.peer];
     if(phase!=="play")renderLobby();});
 }
 function handle(m,from){
-  if(isHost&&m.t!=="st"&&m.t!=="L"&&m.t!=="sc"&&m.t!=="claim"&&m.t!=="hb")send(m,from);
-  if(m.t==="hb"){if(peers[m.id])peers[m.id].seen=now();return;}
-  if(m.t==="st"){seed=m.seed;genMansion(seed);build3D();
-    spawnPick=(m.spots&&m.spots[myId]!=null)?m.spots[myId]:null;startMatch();return;}
+  if(isHost&&m.t!=="st"&&m.t!=="L"&&m.t!=="sc"&&m.t!=="claim")send(m,from);
+  if(m.t==="st"){seed=m.seed;genMansion(seed);build3D();startMatch();return;}
   if(m.t==="hi"){
     if(!peers[m.id])peers[m.id]={mesh:avatar()};
     peers[m.id].name=m.name;peers[m.id].lambs=0;peers[m.id].kills=0;
-    peers[m.id].lives=LIVES;peers[m.id].out=false;peers[m.id].seen=now();
-    if(isHost&&phase!=="play"){
-      note("Ha entrado "+String(m.name||"alguien").slice(0,10)+".");
-      if(AC){tone(740,.09,.10,"sine");tone(990,.12,.08,"sine",null,.09);}}
+    peers[m.id].lives=LIVES;peers[m.id].out=false;
     // al recién llegado le pasamos quién hay ya en la casa
     if(isHost&&from&&conns[from]){const c=conns[from];
       for(const id in peers)if(id!==m.id)c.send({t:"hi",id:id,name:peers[id].name});}
@@ -1165,13 +1065,9 @@ function resolveClaim(m,from){
     send({t:"ev",kind:"kill",by:killer,victim:m.victim,x:m.x,y:m.y,z:m.z});
     remoteEvent({kind:"kill",by:killer,victim:m.victim,x:m.x,y:m.y,z:m.z});
     hostScores();}
-  if(m.k==="lambkill"){
-    const L=lambs[m.i];
-    if(!L||!L.alive)return;                  // ya estaba en el suelo
-    L.alive=false;L.lastMove=now();hostLambs();return;}
   if(m.k==="lamb"){
     const L=lambs[m.i];
-    if(!L||L.drained||L.alive)return;         // o se le adelantaron, o sigue de pie
+    if(!L||L.drained)return;                 // alguien se le adelantó
     L.alive=false;L.drained=true;L.back=0;
     if(m.by===myId)me.lambs++;else if(peers[m.by])peers[m.by].lambs=(peers[m.by].lambs||0)+1;
     hostScores();hostLambs();}
@@ -1181,8 +1077,8 @@ function resolveClaim(m,from){
 function hostInitLambs(){
   lambs.length=0;
   for(let i=0;i<LAMB_COUNT;i++){
-    const s=lambSpot();
-    lambs.push({x:s.x,y:s.y,z:s.z,alive:true,drained:false,back:0,stuck:0,
+    const s=spawns[Math.floor(Math.random()*spawns.length)];
+    lambs.push({x:s.x+rf(-1,1),y:s.y,z:s.z+rf(-1,1),alive:true,drained:false,back:0,
       mesh:lambMesh(),vx:0,vz:0,next:0,turn:0});}
 }
 function hostTickLambs(dt){
@@ -1192,26 +1088,16 @@ function hostTickLambs(dt){
       if(L.drained){
         if(!L.back)L.back=now()+LAMB_BACK;
         else if(now()>L.back){
-          const s=lambSpot(15,L);
-          L.x=s.x;L.y=s.y;L.z=s.z;
-          L.alive=true;L.drained=false;L.back=0;L.vx=0;L.vz=0;L.turn=0;L.stuck=0;hostLambs();}}
+          const s=spawns[Math.floor(Math.random()*spawns.length)];
+          L.x=s.x+rf(-1,1);L.y=s.y;L.z=s.z+rf(-1,1);
+          L.alive=true;L.drained=false;L.back=0;L.vx=0;L.vz=0;L.turn=0;hostLambs();}}
       continue;}
     L.turn-=dt;
     if(L.turn<=0){L.turn=1.2+Math.random()*2.4;
       const a=Math.random()*Math.PI*2;L.vx=Math.sin(a)*0.75;L.vz=Math.cos(a)*0.75;}
-    lambPush(L);
     const nx=L.x+L.vx*dt,nz=L.z+L.vz*dt;
-    let hit=false;
-    if(!blocked(nx,L.z,L.y)&&!holeNear(nx,L.z,0.9)){if(nx!==L.x)L.lastMove=now();L.x=nx;}else hit=true;
-    if(!blocked(L.x,nz,L.y)&&!holeNear(L.x,nz,0.9)){if(nz!==L.z)L.lastMove=now();L.z=nz;}else hit=true;
-    if(hit){
-      // girar un ángulo fijo, no otro al azar: así sale del rincón en vez de rebotar dentro
-      const a=Math.atan2(L.vx,L.vz)+2.3+(Math.random()-.5)*0.6;
-      L.vx=Math.sin(a)*0.75;L.vz=Math.cos(a)*0.75;L.turn=0.9+Math.random()*1.2;
-      L.stuck=(L.stuck||0)+dt;
-      if(L.stuck>4){                        // encallado de verdad: se muda de sitio
-        const s2=lambSpot(15,L);L.x=s2.x;L.y=s2.y;L.z=s2.z;L.stuck=0;L.lastMove=now();hostLambs();}
-    } else L.stuck=0;
+    if(!blocked(nx,L.z,L.y)){if(nx!==L.x)L.lastMove=now();L.x=nx;}else L.turn=0;
+    if(!blocked(L.x,nz,L.y)){if(nz!==L.z)L.lastMove=now();L.z=nz;}else L.turn=0;
   }
 }
 function hostLambs(){
@@ -1307,15 +1193,11 @@ function remoteEvent(m,mine){
     addEcho(m.x,m.y,m.z,1.0,9,[1.0,0.4,0.38]);
     if(!mine)worldSound(m.x,m.y,m.z,function(D){noiseB(.45,.45,900,D);tone(110,.5,.2,"sawtooth",D);});
     return;}
-  if(m.kind==="lambdown"){
-    worldSound(m.x,m.y,m.z,function(D){
-      tone(300,.22,.20,"sawtooth",D);tone(150,.4,.14,"sine",D,.1);noiseB(.3,.16,700,D,.05);});
-    addEcho(m.x,m.y,m.z,.5,5,[1.0,0.45,0.42]);return;}
   if(m.kind==="bleat"){
     worldSound(m.x,m.y+.6,m.z,function(D){
-      tone(430,.2,.32,"sawtooth",D);tone(392,.26,.21,"sawtooth",D,.17);
-      tone(300,.3,.11,"sine",D,.17);});
-    return;}                       // sin eco: el cordero suena, pero no te dibuja la sala
+      tone(430,.2,.30,"sawtooth",D);tone(392,.26,.20,"sawtooth",D,.17);
+      tone(300,.3,.10,"sine",D,.17);});
+    addEcho(m.x,m.y+.6,m.z,.62,10,[1.0,0.62,0.55]);return;}
 }
 
 /* ══════════ acciones ══════════ */
@@ -1367,13 +1249,10 @@ function claimKill(id){
   else send({t:"claim",k:"kill",by:myId,victim:id,x:me.x,y:me.y,z:me.z});
 }
 function claimLamb(i){
-  // matar al cordero no puntúa: hay que beber.
-  // y hay que avisar al anfitrión, o él lo sigue dando por vivo y te lo resucita.
-  const L=lambs[i];
-  if(L)L.alive=false;                                   // provisional, hasta que el anfitrión conteste
-  if(isHost)resolveClaim({k:"lambkill",by:myId,i:i},myId);
-  else send({t:"claim",k:"lambkill",by:myId,i:i});
-  ev({kind:"lambdown",x:L?L.x:me.x,y:(L?L.y:me.y)+.5,z:L?L.z:me.z});
+  // matar al cordero no puntúa: hay que beber
+  if(lambs[i])lambs[i].alive=false;
+  if(isHost){hostLambs();}
+  ev({kind:"kill",by:myId,victim:"lamb"+i,x:lambs[i]?lambs[i].x:me.x,y:me.y,z:lambs[i]?lambs[i].z:me.z});
   flash("Cordero abatido · bebe de él","good");
 }
 function nearCorpse(){
@@ -1390,7 +1269,7 @@ function dieNow(){
   drawAmmo();
 }
 function respawn(){
-  const s=farSpawn();
+  const s=spawns[Math.floor(Math.random()*spawns.length)];
   me.x=s.x;me.z=s.z;me.y=s.y;vy=0;depenetrate();me.dead=false;me.ammo=MAX_AMMO;
   drawAmmo();flash("Vuelves","");
 }
@@ -1471,7 +1350,7 @@ function entryRules(){
   return "<div class='rules'>"+
     "<p><b>Ganas bebiéndote dos corderos.</b> Matar no puntúa: solo quita de en medio un rato.</p>"+
     "<p>Matar al cordero tampoco cuenta: hay que <b>beber</b>, y beber tarda tres segundos en los que haces ruido y no puedes defenderte.</p>"+
-    "<p>Tienes <b>tres cuerpos</b> y <b>dos balas</b>. No hay más. Un disparo mata a veinticuatro metros y se oye en media casa; el mordisco también mata y apenas suena, pero hay que llegar a tocar a la presa.</p>"+
+    "<p>Tienes <b>tres cuerpos</b> y <b>dos balas</b>. No hay más. El mordisco es silencioso, pero hay que tocar a la presa.</p>"+
    "</div>";
 }
 function renderEntry(){
@@ -1487,7 +1366,7 @@ function renderEntry(){
      "<button class='ghost' id='btnSolo'>Probar solo</button></div>"+
    "</div>"+
    entryRules()+
-   "<div class='status' id='status'>De navegador a navegador, sin servidor. · <b>"+VERSION+"</b></div>";
+   "<div class='status' id='status'>De navegador a navegador, sin servidor.</div>";
   el("btnOnline").addEventListener("click",renderOnline);
   el("btnSolo").addEventListener("click",function(){
     isHost=true;myId="solo";me.name="solo";
@@ -1505,48 +1384,18 @@ function renderOnline(){
     "<div class='box'><h2>Unirse</h2><input type='text' id='joinCode' maxlength='4' placeholder='CÓDIGO'>"+
      "<input type='text' id='nameJ' maxlength='10' placeholder='TU NOMBRE'><button id='btnJoin'>Entrar</button></div>"+
    "</div>"+
-   "<div class='status' id='status'>El que crea la partida dicta el código de cuatro letras. Los demás lo escriben en Unirse. · <b>"+VERSION+"</b></div>"+
+   "<div class='status' id='status'>El que crea la partida dicta el código de cuatro letras. Los demás lo escriben en Unirse.</div>"+
    "<button class='ghost' id='btnBack' style='margin-top:10px'>Volver</button>";
   el("btnHost").addEventListener("click",startHost);
   el("btnJoin").addEventListener("click",startJoin);
   el("btnBack").addEventListener("click",renderEntry);
 }
-/* refresco suave: solo la lista y el aviso. Los botones no se tocan,
-   para que un clic no se pierda justo cuando alguien entra. */
-function refreshLobby(){
-  if(phase!=="lobby"&&phase!=="over"){clearInterval(renderLobby._t);return;}
-  if(!isHost&&hostConn&&hostConn.open)send({t:"hb",id:myId});
-  const w=el("whoWrap");
-  if(!w){renderLobby();return;}
-  const b=lobbyWho();
-  w.innerHTML=b.html;
-  const tit=el("whoTit");if(tit)tit.textContent="En la casa · "+b.n+" de 8";
-  const st=el("status");
-  if(st)st.innerHTML=((lobbyNote&&now()-lobbyNoteAt<8)?lobbyNote+" · ":"")+
-    (isHost?"Sala abierta, escuchando. ":"")+
-    "Versión <b>"+VERSION+"</b> · todos deberíais tener la misma";
-}
-function lobbyWho(){
-  function esc(t){return String(t||"").replace(/[<>&"]/g,function(c){
-    return{"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c];});}
-  const ids=[];for(const id in peers)ids.push(id);
-  const n=ids.length+1;
-  let ppl="<div class='who'>";
-  ppl+="<div><span class='dot'></span>"+esc(me.name||"tú")+
-       "<span class='rol'>"+(isHost?"tú · anfitrión":"tú")+"</span></div>";
-  for(let i=0;i<ids.length;i++){const id=ids[i];
-    const on=isHost?(!!(conns[id]&&conns[id].open)&&now()-(peers[id].seen||0)<7):true;
-    ppl+="<div><span class='dot"+(on?"":" off")+"'></span>"+esc(peers[id].name||"—")+
-         "<span class='rol'>"+(on?"conectado":"se ha ido")+"</span></div>";}
-  ppl+="</div>";
-  if(n===1)ppl+="<p class='empty'>Todavía no ha entrado nadie. Que abran el link, pulsen "+
-    "<b>Jugar online</b> y escriban el código en la caja de la <b>derecha</b> (Unirse). "+
-    "En cuanto lo hagan aparecerán aquí solos — no hay que aceptar a nadie.</p>";
-  return{html:ppl,n:n};
-}
 function renderLobby(){
   if(phase!=="lobby"&&phase!=="over")return;
-  const _w=lobbyWho(),ppl=_w.html,n=_w.n;
+  let ppl="<div class='final'>";
+  ppl+="<div><b>"+(me.name||"tú")+"</b></div>";
+  for(const id in peers)ppl+="<div>"+(peers[id].name||"—")+"</div>";
+  ppl+="</div>";
   const over=phase==="over";
   el("card").innerHTML=
    "<h1>Baby Vampires</h1>"+
@@ -1554,45 +1403,26 @@ function renderLobby(){
      ?(winner&&winner.id===myId?(winner.last?"Has ganado: el último en pie.":"Has ganado. Dos corderos secos."):
         "Ha ganado "+((winner&&winner.n)||"otro")+((winner&&winner.last)?" · el último en pie":" · "+((winner&&winner.l)||0)+" corderos"))
      :"Esperando. El anfitrión empieza cuando estéis.")+"</p>"+
-   (isHost?"<div class='box'><h2>Código de la sala</h2><div class='code'>"+myCode+"</div>"+
-     "<div class='inv'><button id='btnGo'>"+(over?"Otra partida":(n>1?"Empezar":"Empezar igualmente"))+"</button>"+
-     "<button class='ghost' id='btnInv'>Copiar invitación</button></div></div>"
-    :"<div class='box'><h2>Sala</h2><p class='sub' style='margin:0'>Dentro. Esperando a que el anfitrión empiece.</p></div>")+
-   "<div class='box' style='margin-top:14px'><h2 id='whoTit'>En la casa · "+n+" de 8</h2>"+
-     "<div id='whoWrap'>"+ppl+"</div></div>"+
+   (isHost?"<div class='box'><h2>Código</h2><div class='code'>"+myCode+"</div>"+
+     "<button id='btnGo'>"+(over?"Otra partida":"Empezar")+"</button></div>"
+    :"<div class='box'><h2>Sala</h2><p class='sub' style='margin:0'>Esperando al anfitrión.</p></div>")+
+   "<div class='box' style='margin-top:14px'><h2>En la casa</h2>"+ppl+"</div>"+
    "<div class='rules'>"+
-    "<p><b>Se gana bebiendo de dos corderos.</b> Matar no puntúa: solo quita a alguien de en medio cinco segundos y le gasta un cuerpo. Tienes <b>tres cuerpos</b> y <b>dos balas</b> — las cajas de la casa te dan una, y nunca pasas de dos.</p>"+
-    "<p><b>Botón derecho mantenido</b> carga el chillido: susurro, llamada o chillido. Cuanto más cargas, más lejos ves — y más lejos te oyen, que siempre es más de lo que tú alcanzas a ver. La <b>rueda</b> abre o cierra el cono.</p>"+
-    "<p>Un <b>disparo mata</b> a veinticuatro metros, pero hay que tenerlo a tiro limpio y el estruendo se oye en media casa. El <b>mordisco</b> también mata y apenas hace ruido, pero tienes que llegar a tocarlo.</p>"+
-    "<p>Los chillidos de los demás <b>también te iluminan a ti</b>, y salen de su cabeza: oír un chillido ajeno es saber dónde está. Quedarte quieto <b>ya no te esconde</b> — devuelves eco igual, solo que más flojo. Lo que esconde es ponerte detrás de algo: un armario, un biombo, un cortinaje.</p>"+
-    "<p>Lo que ves <b>se te olvida</b>: el relieve de la casa se apaga en unos veintidós segundos. De un cuerpo no queda ni eso — medio segundo y se acabó.</p>"+
+    "<p><b>Se gana bebiendo de dos corderos.</b> Matar no puntúa: solo te quita de en medio a alguien un rato. Tienes <b>tres cuerpos</b> y <b>dos balas</b> — no hay más, y las que recojas por la casa nunca pasan de dos.</p>"+
+    "<p><b>Botón derecho mantenido</b> carga el chillido. Cuanto más cargas, más lejos ves — y más lejos te oyen. Suéltalo para emitir.</p>"+
+    "<p><b>La rueda del ratón</b> abre o cierra el cono. Estrecho ve más lejos en una dirección; ancho te enseña lo que tienes alrededor.</p>"+
+    "<p>Los chillidos de los demás <b>también te iluminan a ti</b>. Estar quieto y callado es no ver nada, pero oírlo todo.</p>"+"<p>Lo que ves <b>se te olvida</b>: el relieve de la casa se apaga en unos veinte segundos. No acumulas un plano, acumulas memoria.</p>"+
    "</div>"+
    "<div class='sens'><span>Sensibilidad</span><input type='range' id='sens' min='30' max='250' value='"+Math.round(sens*100)+"'><span id='sensv'>"+sens.toFixed(2)+"×</span></div>"+
    "<div class='keys'>"+
-    "<kbd>W A S D</kbd><span>Moverte · <kbd>Shift</kbd> despacio, se te oye menos · <kbd>C</kbd> agachado</span>"+
+    "<kbd>W A S D</kbd><span>Moverte · <kbd>Shift</kbd> despacio · <kbd>C</kbd> agachado</span>"+
     "<kbd>Espacio</kbd><span>Saltar</span>"+
-    "<kbd>Clic der. · Q</kbd><span>Chillido · mantenlo para cargar, suéltalo para emitir</span>"+
-    "<kbd>Rueda</kbd><span>Abrir o cerrar el cono</span>"+
-    "<kbd>Clic izq.</kbd><span>Disparar · el primer clic de la partida captura el ratón</span>"+
-    "<kbd>F</kbd><span>Morder · a menos de dos metros, casi sin ruido</span>"+
-    "<kbd>E</kbd><span>Abrir y cerrar puertas · beber de un cordero abatido</span>"+
-    "<kbd>Esc</kbd><span>Suelta el ratón · <kbd>F2</kbd> diagnóstico</span>"+
-   "</div><div class='status' id='status'>"+
-     ((lobbyNote&&now()-lobbyNoteAt<8)?lobbyNote+" · ":"")+
-     (isHost?"Sala abierta, escuchando. ":"")+
-     "Versión <b>"+VERSION+"</b> · todos deberíais tener la misma</div>";
+    "<kbd>Clic der.</kbd> <kbd>Q</kbd><span>Chillido · mantener para cargar</span>"+
+    "<kbd>Clic izq.</kbd><span>Disparar</span>"+
+    "<kbd>F</kbd><span>Morder · silencioso, cuerpo a cuerpo</span>"+
+    "<kbd>E</kbd><span>Puertas · beber de un cordero abatido</span>"+"<kbd>F2</kbd><span>Diagnóstico · <kbd>Esc</kbd> suelta el ratón</span>"+
+   "</div><div class='status' id='status'></div>";
   const b=el("btnGo");if(b)b.addEventListener("click",hostStart);
-  const bi=el("btnInv");
-  if(bi)bi.addEventListener("click",function(){
-    const txt=location.href.split("#")[0]+"\nCódigo: "+myCode+
-      "\nAuriculares y ordenador. Jugar online → Unirse, y mete el código.";
-    try{navigator.clipboard.writeText(txt).then(function(){
-      bi.textContent="Copiado";setTimeout(function(){bi.textContent="Copiar invitación";},1800);},
-      function(){bi.textContent="Copia a mano: "+myCode;});}
-    catch(e){bi.textContent="Copia a mano: "+myCode;}});
-  // el lobby se refresca solo: si alguien entra o se cae, se ve sin tocar nada
-  clearInterval(renderLobby._t);
-  renderLobby._t=setInterval(refreshLobby,2000);
   const sl=el("sens");
   if(sl)sl.addEventListener("input",function(){sens=this.value/100;el("sensv").textContent=sens.toFixed(2)+"×";});
 }
@@ -1604,13 +1434,13 @@ function startHost(){
   peer.on("open",function(){phase="lobby";renderLobby();});
   peer.on("connection",function(c){conns[c.peer]=c;
     c.on("open",function(){c.send({t:"hi",id:myId,name:me.name});renderLobby();});hook(c);});
-  peer.on("error",function(e){setStatus("No se ha podido abrir la sala ("+e.type+"). Recarga la página y vuelve a crearla.",true);});
+  peer.on("error",function(e){setStatus("Error: "+e.type,true);});
 }
 function startJoin(){
   const cd=(el("joinCode").value||"").trim().toUpperCase();
   me.name=(el("nameJ").value||"neófito").trim().slice(0,10);
   if(cd.length!==4){setStatus("El código son 4 caracteres.",true);return;}
-  setStatus("Buscando la sala "+cd+"…");el("btnJoin").disabled=true;
+  setStatus("Buscando…");el("btnJoin").disabled=true;
   peer=new Peer();
   peer.on("open",function(id){myId=id;
     hostConn=peer.connect(PREFIX+cd,{reliable:true});
@@ -1618,52 +1448,13 @@ function startJoin(){
       hostConn.send({t:"hi",id:myId,name:me.name});renderLobby();});
     hook(hostConn);});
   peer.on("error",function(e){
-    const msg=e.type==="peer-unavailable"
-      ? "Ese código no existe. Comprueba las cuatro letras, y que quien lo creó siga con la pestaña abierta — el código cambia cada vez que se crea una sala."
-      : (e.type==="network"||e.type==="server-error"
-         ? "No se ha podido contactar con el servidor de códigos. Espera diez segundos y vuelve a darle a Entrar."
-         : "No se ha podido entrar ("+e.type+"). Recarga la página y prueba otra vez.");
-    setStatus(msg,true);
-    const bj=el("btnJoin");if(bj)bj.disabled=false;});
+    setStatus("Error: "+e.type+(e.type==="peer-unavailable"?" — ese código no existe.":""),true);
+    el("btnJoin").disabled=false;});
 }
-/* el anfitrión reparte los puntos de salida: nadie empieza al lado de nadie */
-function spreadSpawns(ids){
-  const out={},used=[];
-  for(let k=0;k<ids.length;k++){
-    let best=-1,bestD=-1;
-    for(let i=0;i<spawns.length;i++){
-      if(used.indexOf(i)!==-1)continue;
-      let d;
-      if(!used.length)d=Math.random()*1000;              // el primero, donde caiga
-      else{d=1e9;
-        for(let u=0;u<used.length;u++){const a=spawns[i],b=spawns[used[u]];
-          d=Math.min(d,Math.hypot(a.x-b.x,a.z-b.z)+Math.abs(a.y-b.y)*1.5);}}
-      if(d>bestD){bestD=d;best=i;}}
-    if(best<0)best=Math.floor(Math.random()*spawns.length);
-    used.push(best);out[ids[k]]=best;}
-  return out;
-}
-/* al reaparecer, lo más lejos posible de quien siga vivo */
-function farSpawn(){
-  let best=null,bd=-1;
-  for(let k=0;k<10;k++){
-    const c=spawns[Math.floor(Math.random()*spawns.length)];
-    let d=1e9,any=false;
-    for(const id in peers){const p=peers[id];
-      if(!p||p.dead||p.x===undefined)continue;
-      any=true;d=Math.min(d,Math.hypot(p.x-c.x,p.z-c.z)+Math.abs(p.y-c.y)*1.5);}
-    if(!any)return c;
-    if(d>bd){bd=d;best=c;}}
-  return best||spawns[Math.floor(Math.random()*spawns.length)];
-}
-let spawnPick=null;
 function hostStart(){
   seed=Math.floor(Math.random()*1e9);
   genMansion(seed);build3D();
-  const ids=[myId];for(const id in peers)ids.push(id);
-  const spots=spreadSpawns(ids);
-  send({t:"st",seed:seed,spots:spots});
-  spawnPick=spots[myId];
+  send({t:"st",seed:seed});
   startMatch();
   hostInitLambs();hostLambs();hostScores();
 }
@@ -1675,8 +1466,7 @@ function startMatch(){
   echoes.length=0;
   me.ammo=START_AMMO;me.lambs=0;me.kills=0;me.lives=LIVES;me.out=false;me.dead=false;me.drinking=0;
   for(const id in peers){const P=peers[id];P.lambs=0;P.kills=0;P.lives=LIVES;P.out=false;}
-  const s=(spawnPick!=null&&spawns[spawnPick])?spawns[spawnPick]:farSpawn();
-  spawnPick=null;
+  const s=spawns[Math.floor(Math.random()*spawns.length)];
   me.x=s.x;me.z=s.z;me.y=s.y;me.yaw=Math.random()*6.28;me.pitch=0;vy=0;depenetrate();
   for(let f=0;f<2;f++)for(let i=0;i<F[f].anchors.length;i++)F[f].anchors[i].next=now()+Math.random();
   drawAmmo();drawBoard();
@@ -1704,8 +1494,7 @@ function frame(){
   requestAnimationFrame(frame);
 }
 function frameBody(){
-  const t=now(),raw=t-last,dt=Math.min(.05,raw),dtr=Math.min(.5,raw);last=t;
-  watchFps(dtr);
+  const t=now(),dt=Math.min(.05,t-last);last=t;
   if(running&&F[0]){
     if(me.dead){
       if(!me.out&&t>me.respawnAt)respawn();
@@ -1749,7 +1538,7 @@ function frameBody(){
       // beber
       const corpse=nearCorpse();
       if(corpse>=0&&keys["e"]){
-        me.drinking+=dtr;
+        me.drinking+=dt;
         if(Math.floor(me.drinking*2)!==Math.floor((me.drinking-dt)*2))
           ev({kind:"drink",x:me.x,y:me.y+.6,z:me.z});
         if(me.drinking>=DRINK_SECS){
@@ -1769,8 +1558,8 @@ function frameBody(){
       if(keys["e"]&&corpse<0&&nd&&!keys._dl){keys._dl=true;toggleDoor();}
       if(!keys["e"])keys._dl=false;
       // carga del pulso
-      if(pulseHeld){pulseCharge=Math.min(1,pulseCharge+dtr*0.75);}
-      if(pulseCD>0)pulseCD=Math.max(0,pulseCD-dtr);
+      if(pulseHeld){pulseCharge=Math.min(1,pulseCharge+dt*0.75);}
+      if(pulseCD>0)pulseCD=Math.max(0,pulseCD-dt);
     }
     // corderos: el anfitrión los mueve y los hace balar
     if(isHost){
@@ -1812,10 +1601,6 @@ function frameBody(){
     if(AC)for(let f=0;f<2;f++){const an=F[f].anchors;
       for(let i=0;i<an.length;i++){const a=an[i];
         if(t>a.next){
-          a.next=t+(AGAP[a.kind]||2.5)*(.85+Math.random()*.3);
-          // la casa tiene casi cuarenta focos de ambiente: solo se calculan los de cerca
-          const adx=a.x-me.x,adz=a.z-me.z;
-          if(adx*adx+adz*adz>26*26)continue;
           worldSound(a.x,a.y,a.z,function(D){
             if(a.kind==="goteo")tone(1250,.045,.16,"sine",D);
             else if(a.kind==="corriente")noiseB(.8,.05,380,D);
@@ -1825,7 +1610,8 @@ function frameBody(){
             else if(a.kind==="cañería")tone(88,.5,.10,"sine",D);
             else if(a.kind==="ratas")noiseB(.12,.06,2600,D);
             else tone(300,.4,.09,"sine",D);});
-          addEcho(a.x,a.y,a.z,.26,2.8);}}}
+          addEcho(a.x,a.y,a.z,.26,2.8);
+          a.next=t+(AGAP[a.kind]||2.5)*(.85+Math.random()*.3);}}}
     // puertas animadas
     for(let f=0;f<2;f++)for(let i=0;i<F[f].doors.length;i++){
       const d=F[f].doors[i];if(!d.mesh)continue;
@@ -1863,7 +1649,7 @@ function frameBody(){
       " A"+rr+","+rr+" 0 "+(half>Math.PI/2?1:0)+" 1 "+
       (130+Math.sin(half)*rr).toFixed(1)+","+(130-Math.cos(half)*rr).toFixed(1)+" Z");
     el("clock").textContent=dbgOn
-      ? (Math.round(fps)+" fps · calidad "+QUALITY.toFixed(2)+" · chillidos "+pulseCount+" · ecos "+echoes.length+" · cursor "+(locked()?"capturado":"libre")
+      ? ("chillidos "+pulseCount+" · ecos "+echoes.length+" · cursor "+(locked()?"capturado":"libre")
          +" · x"+me.x.toFixed(1)+" z"+me.z.toFixed(1)+" y"+me.y.toFixed(1)+" · salas "+(F[0]?F[0].rooms.length:0)
          +(lastErr?"  ⚠ "+lastErr:""))
       : "";
@@ -1887,13 +1673,8 @@ function frameBody(){
         const kv=Math.max(0,1-(dd/16)*(dd/16)),kc=Math.max(0,1-(dd/11)*(dd/11));
         ch.material.opacity=L.alive?(0.60*kv*(0.78+0.22*Math.sin(t*5.5))):(0.70*kc);
         ch.material.color.setHex(L.alive?0xffffff:0x7A2622);
-      } else ch.visible=true;
-    }
-    // quieto sigue devolviendo eco, solo que más flojo — como los vampiros
-    if(L.mesh.userData.mat){
-      const k=L.alive?((t-(L.lastMove||0)<0.6)?1:.45):.62;
-      L.mesh.userData.mat.uniforms.uTint.value.set(k,k*.94,k*.88);}
-    }
+      } else ch.visible=(t-(L.lastMove||0)<0.6)||!L.alive;
+    }}
   for(let i=0;i<ammoSpots.length;i++){const a=ammoSpots[i];
     const free=running&&a.taken<=t;
     if(a.mesh)a.mesh.visible=free;
@@ -1919,29 +1700,10 @@ function frameBody(){
       uni.uEchoS.value[i]=e.s;uni.uEchoR.value[i]=e.R;
       uni.uEchoC.value[i].set(e.c[0],e.c[1],e.c[2]);}
     else uni.uEchoS.value[i]=0;}
-  fitCanvas();
-  renderer.render(scene,camera);
-}
-/* el lienzo solo se redimensiona cuando cambia de verdad.
-   antes se reasignaba su tamaño en cada fotograma, y eso obliga al navegador
-   a tirar y rehacer el búfer de dibujo sesenta veces por segundo. */
-let curW=0,curH=0,curPR=0,QUALITY=1.75;
-function fitCanvas(){
   const w=window.innerWidth,h=window.innerHeight;
-  const pr=Math.min(window.devicePixelRatio||1,QUALITY);
-  if(w===curW&&h===curH&&pr===curPR)return;
-  curW=w;curH=h;curPR=pr;
-  renderer.setPixelRatio(pr);renderer.setSize(w,h,false);
-  camera.aspect=w/h;camera.updateProjectionMatrix();
-}
-/* y si el ordenador no da para tanto, se baja la resolución sola */
-let fpsN=0,fpsT=0,fps=60,qDrop=0;
-function watchFps(dt){
-  fpsN++;fpsT+=dt;
-  if(fpsT<1.5)return;
-  fps=fpsN/fpsT;fpsN=0;fpsT=0;
-  if(fps<40&&qDrop<3){qDrop++;QUALITY=[1.75,1.25,1.0,0.75][qDrop];}
-  else if(fps>58&&qDrop>0){qDrop--;QUALITY=[1.75,1.25,1.0,0.75][qDrop];}
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,1.75));
+  renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();
+  renderer.render(scene,camera);
 }
 window.addEventListener("beforeunload",function(e){
   if(running){ e.preventDefault(); e.returnValue=""; }
