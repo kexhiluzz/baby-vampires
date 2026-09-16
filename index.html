@@ -132,10 +132,10 @@ function clamp(v,a,b){return v<a?a:(v>b?b:v);}
 /* ══════════ constantes ══════════ */
 const MW=48,MH=36,WALL_T=.22,FLOOR_H=4.0,SLAB_T=.35,WALL_H=FLOOR_H-SLAB_T,DOOR_W=1.5;
 const EYE=1.62,EYE_CROUCH=1.02,RAD=.32,JUMP_V=6.0;
-const MAX_ECHO=14,ECHO_SPEED=10,AFTERGLOW=1.6;
+const MAX_ECHO=14,ECHO_SPEED=8.2,AFTERGLOW=1.6;
 const MEM_TICK=0.25, MEM_FADE=16;   // segundos hasta olvidar del todo
 const SOUND_MS=343;                    // velocidad del sonido, para los retornos
-const VERSION="v23 · 15 sep";         // sube con cada cambio que pides: así sabes qué juegas
+const VERSION="v24 · 16 sep";         // sube con cada cambio que pides: así sabes qué juegas
 const LAMBS_TO_WIN=2;                 // solo se gana bebiendo
 const LIVES=3;                        // tres cuerpos y se acabó
 const START_AMMO=2, MAX_AMMO=2, AMMO_PICKUPS=8;
@@ -147,9 +147,9 @@ const GAIT=[{sp:3.1,stride:.62,vol:.40,cut:1500,echo:.34,eR:3.8},
             {sp:1.05,stride:1.15,vol:.05,cut:480,echo:.045,eR:1.1}];
 /* los tres modos del chillido: lo que ves y quién te oye */
 const PULSE=[
- {n:"susurro", see:6.5, hear:4,  cd:0.7, vol:.10, f:2400},
- {n:"llamada", see:14,  hear:17, cd:1.6, vol:.26, f:1700},
- {n:"chillido",see:27,  hear:46, cd:3.0, vol:.55, f:1150}];
+ {n:"susurro", see:6.5, hear:4,  cd:0.95, vol:.10, f:2400},
+ {n:"llamada", see:14,  hear:17, cd:2.10, vol:.26, f:1700},
+ {n:"chillido",see:27,  hear:46, cd:3.80, vol:.55, f:1150}];
 const AK=["goteo","corriente","reloj","crujido","viento","cañería","ratas","campana"];
 const AGAP={goteo:2.1,corriente:3.4,reloj:1.05,crujido:4.2,viento:3.6,"cañería":2.8,ratas:3.1,campana:6.5};
 const FLOORS=[{n:"madera",v:1.0},{n:"alfombra",v:.35},{n:"piedra",v:1.5}];
@@ -410,6 +410,152 @@ function genMansion(seed){
   }
 }
 
+
+/* ══════════ el labrado ══════════
+   Los muebles dejan de ser cajas. Cada uno se compone de piezas —patas, cornisas,
+   cajones, travesaños— que solo se dibujan: la colisión sigue siendo la caja
+   sencilla de siempre, así que nada de esto puede engancharte. */
+let deco=[];
+function D(x,y,z,sx,sy,sz,m){deco.push({x:x,y:y,z:z,sx:sx,sy:sy,sz:sz,m:m||"w"});}
+/* un mueble contra un muro puede estar girado 90°. W_ dibuja en coordenadas del
+   propio mueble —a lo ancho, a lo alto, hacia su frente— y ya se ocupa del giro,
+   para que los cajones y tiradores salgan siempre por la cara que se ve. */
+let FA=1;
+function faceAx(sx,sz){FA=(sz<=sx)?1:0;}
+function W_(x,y,z,lat,yy,dep,lw,lh,ld,m){
+  if(FA)D(x+lat,y+yy,z+dep, lw,lh,ld,m);
+  else  D(x+dep,y+yy,z+lat, ld,lh,lw,m);
+}
+/* patas: cuatro, en las esquinas de una pieza */
+function patas(x,y,z,sx,sz,h,g,m){
+  const ax=sx/2-g,az=sz/2-g;
+  for(let i=0;i<4;i++)
+    D(x+((i&1)?ax:-ax), y+h/2, z+((i&2)?az:-az), g*2,h,g*2,m);
+}
+function armario(x,y,z,sx,sy,sz){
+  faceAx(sx,sz);const W=FA?sx:sz,P=FA?sz:sx,pl=.13,co=.11;   // zócalo y cornisa
+  W_(x,y,z, 0,pl/2,0, W,pl,P,"w");
+  W_(x,y,z, 0,pl+(sy-pl-co)/2,0, W-.05,sy-pl-co,P-.03,"w");
+  W_(x,y,z, 0,sy-co/2,0, W+.10,co,P+.09,"w");                // la cornisa vuela
+  for(const t of [-1,1])                                     // dos hojas resaltadas
+    W_(x,y,z, t*W*.25,pl+(sy-pl-co)/2,P/2-.005, W*.44,sy-pl-co-.10,.04,"w");
+  for(const t of [-1,1])
+    W_(x,y,z, t*.06*W,sy*.52,P/2+.03, .05,.11,.05,"m");      // tiradores
+}
+function aparador(x,y,z,sx,sy,sz){
+  faceAx(sx,sz);const W=FA?sx:sz,P=FA?sz:sx,t=.07;
+  patas(x,y,z,sx,sz,.22,.055,"w");
+  W_(x,y,z, 0,.22+(sy-.22-t)/2,0, W-.04,sy-.22-t,P-.04,"w");
+  W_(x,y,z, 0,sy-t/2,0, W+.09,t,P+.08,"w");                  // el sobre vuela
+  const bh=sy-.22-t;
+  for(let i=0;i<3;i++){const yy=.22+bh*(i+.5)/3;
+    W_(x,y,z, 0,yy,P/2-.005, W-.11,bh/3-.055,.04,"w");       // cajones
+    W_(x,y,z, 0,yy,P/2+.035, .24,.05,.05,"m");}              // y sus tiradores
+}
+function arcon(x,y,z,sx,sy,sz){
+  faceAx(sx,sz);const W=FA?sx:sz,P=FA?sz:sx,t=.09;
+  W_(x,y,z, 0,(sy-t)/2,0, W,sy-t,P,"w");
+  W_(x,y,z, 0,sy-t/2,0, W+.05,t,P+.05,"w");                  // la tapa
+  for(const q of [-1,1])W_(x,y,z, q*W*.28,(sy-t)/2,0, .05,sy-t,P+.02,"m");  // flejes
+  W_(x,y,z, 0,sy-t,P/2, .10,.09,.05,"m");                    // cerradura
+}
+function vitrina(x,y,z,sx,sy,sz){
+  faceAx(sx,sz);const W=FA?sx:sz,P=FA?sz:sx;
+  W_(x,y,z, 0,.09,0, W,.18,P,"w");
+  W_(x,y,z, 0,sy-.07,0, W+.08,.14,P+.07,"w");
+  for(const q of [-1,1])W_(x,y,z, q*(W/2-.05),sy/2,0, .09,sy,P,"w");
+  W_(x,y,z, 0,sy/2,-P/2+.03, W,sy,.05,"w");                  // el fondo
+  for(let i=1;i<=3;i++)W_(x,y,z, 0,.18+(sy-.3)*i/4,0, W-.14,.035,P-.07,"w"); // baldas
+}
+function reloj(x,y,z,sx,sy,sz){
+  faceAx(sx,sz);const W=FA?sx:sz,P=FA?sz:sx;
+  W_(x,y,z, 0,.08,0, W+.06,.16,P+.05,"w");
+  W_(x,y,z, 0,sy*.42,0, W,sy*.62,P,"w");
+  W_(x,y,z, 0,sy*.80,0, W+.07,sy*.22,P+.04,"w");
+  W_(x,y,z, 0,sy*.80,P/2, W*.6,W*.6,.03,"m");                // la esfera
+  W_(x,y,z, 0,sy-.03,0, W*.5,.07,P*.7,"m");
+  W_(x,y,z, 0,sy*.42,P/2-.01, W*.35,sy*.4,.02,"m");          // el cristal del péndulo
+}
+function consola(x,y,z,sx,sy,sz){
+  faceAx(sx,sz);const W=FA?sx:sz,P=FA?sz:sx;
+  patas(x,y,z,sx,sz,sy-.06,.04,"w");
+  W_(x,y,z, 0,sy-.03,0, W+.07,.06,P+.06,"s");                // sobre de mármol
+  W_(x,y,z, 0,sy*.62,0, W-.12,.05,P-.06,"w");
+}
+function banco(x,y,z,sx,sy,sz){
+  faceAx(sx,sz);const W=FA?sx:sz,P=FA?sz:sx;
+  patas(x,y,z,sx,sz,sy-.08,.05,"w");
+  W_(x,y,z, 0,sy-.04,0, W,.08,P,"f");                        // el asiento, tapizado
+  W_(x,y,z, 0,sy*.52,0, W-.14,.05,P-.09,"w");                // travesaño
+}
+function mesaLarga(x,y,z,sx,sy,sz){
+  patas(x,y,z,sx,sz,sy-0.07,0.075,"w");
+  D(x,y+sy-0.035,z, sx,0.07,sz,"w");
+  D(x,y+sy-0.16,z, sx-0.22,0.06,sz-0.22,"w");        // el faldón
+}
+function silla(x,y,z,sx,sy,sz){
+  patas(x,y,z,sx,sz,0.45,0.03,"w");
+  D(x,y+0.47,z, sx,0.05,sz,"w");
+  for(const s of [-1,1])D(x+s*(sx/2-0.03),y+0.75,z-sz/2+0.03, 0.05,0.56,0.05,"w");
+  for(let i=0;i<3;i++)D(x,y+0.62+i*0.14,z-sz/2+0.03, sx-0.08,0.045,0.035,"w");
+}
+function sofa(x,y,z,sx,sy,sz,hz){
+  const w=hz?sx:sz, d=hz?sz:sx;                       // largo y fondo según orientación
+  patas(x,y,z,sx,sz,0.12,0.05,"w");
+  D(x,y+0.30,z, sx,0.24,sz,"f");                      // el asiento, tapizado
+  if(hz){
+    D(x,y+0.66,z-sz/2+0.12, sx,0.70,0.22,"f");        // respaldo
+    for(const s of [-1,1])D(x+s*(sx/2-0.10),y+0.50,z, 0.20,0.44,sz-0.10,"f");
+  }else{
+    D(x-sx/2+0.12,y+0.66,z, 0.22,0.70,sz,"f");
+    for(const s of [-1,1])D(x,y+0.50,z+s*(sz/2-0.10), sx-0.10,0.44,0.20,"f");
+  }
+}
+function camaDosel(x,y,z){
+  D(x,y+0.14,z, 2.0,0.28,2.1,"w");                    // bastidor
+  D(x,y+0.44,z, 1.86,0.22,1.96,"f");                  // colchón
+  D(x,y+0.60,z+0.55, 1.86,0.10,0.86,"f");             // ropa revuelta
+  patas(x,y,z,2.0,2.1,0.16,0.09,"w");
+}
+function cabecero(x,y,z,sx,sy,sz){
+  D(x,y+sy*0.5,z, sx,sy,sz,"w");
+  for(let i=0;i<5;i++)D(x-sx/2+sx*(i+0.5)/5, y+sy*0.58, z+sz/2, sx/9,sy*0.62,0.035,"w");
+  D(x,y+sy-0.05,z, sx+0.07,0.10,sz+0.05,"w");
+}
+function biombo(x,y,z,sx,sy,sz,hz){
+  const n=3;
+  for(let i=0;i<n;i++){
+    const f=(i-(n-1)/2);
+    const ox=hz?f*(sx/n):0, oz=hz?((i%2)?0.05:-0.05):f*(sz/n);
+    const jx=hz?0.05:0, jz=hz?0:0.05;
+    D(x+ox+jz*0,y+sy/2,z+oz, hz?sx/n:sz*1.0, sy, hz?sz:sz, "f");
+    D(x+ox,y+sy-0.04,z+oz, hz?sx/n:0.08, 0.08, hz?0.08:sz/n, "w");
+    D(x+ox,y+0.04,z+oz,    hz?sx/n:0.08, 0.08, hz?0.08:sz/n, "w");
+  }
+}
+function piano(x,y,z){
+  D(x,y+0.62,z, 2.3,0.30,1.5,"w");
+  D(x,y+0.92,z-0.10, 2.2,0.10,1.2,"w");
+  patas(x,y,z,2.1,1.3,0.62,0.07,"w");
+  D(x-1.0,y+0.80,z+0.62, 1.4,0.08,0.26,"m");          // el teclado
+}
+function chimenea(x,y,z,sx,sy,sz){
+  for(const s of [-1,1])D(x+s*(sx/2-0.22),y+sy/2,z, 0.44,sy,sz,"s");
+  D(x,y+sy-0.11,z, sx,0.22,sz+0.06,"s");              // dintel
+  D(x,y+sy+0.06,z, sx+0.16,0.12,sz+0.14,"s");         // repisa
+  D(x,y+0.05,z+sz*0.2, sx-0.7,0.10,sz*1.3,"s");       // solera
+}
+function estatua(x,y,z,sx,sy,sz){
+  D(x,y+0.09,z, sx+0.12,0.18,sz+0.12,"s");
+  D(x,y+sy/2,z, sx*0.75,sy-0.3,sz*0.75,"s");
+  D(x,y+sy-0.07,z, sx+0.10,0.14,sz+0.10,"s");
+}
+function tarima(x,y,z,sx,sy,sz){
+  D(x,y+sy-0.06,z, sx,0.12,sz,"w");
+  D(x,y+(sy-0.12)/2,z, sx-0.14,sy-0.12,sz-0.14,"s");
+  for(let i=0;i<3;i++)D(x,y+sy*(i+1)/4,z+sz/2, sx,0.04,0.05,"w");
+}
+
 /* atrezzo: lo que el eco encuentra además de las paredes */
 function farFromDoors(fl,x,z,m){
   for(let i=0;i<fl.doors.length;i++){const d=fl.doors[i];
@@ -452,12 +598,13 @@ function nookMuffle(x,y,z){
 /* ── el mobiliario: piezas grandes de casa vieja.
       hide:1 = lo bastante alto para taparte si te agachas detrás ── */
 const WALLK=[
- {sx:2.00,sy:2.25,sz:.62,hide:1},   // armario ropero
- {sx:2.40,sy:1.05,sz:.55,hide:1},   // aparador
- {sx:1.60,sy:2.40,sz:.46,hide:1},   // vitrina
- {sx:1.30,sy:.72, sz:.60},          // arcón
- {sx:.70, sy:2.40,sz:.42,hide:1},   // reloj de pie
- {sx:1.50,sy:.88, sz:.40}];         // consola
+ {k:"armario", sx:2.00,sy:2.25,sz:.62,hide:1},
+ {k:"aparador",sx:2.40,sy:1.05,sz:.55,hide:1},
+ {k:"vitrina", sx:1.60,sy:2.40,sz:.46,hide:1},
+ {k:"arcon",   sx:1.30,sy:.72, sz:.60},
+ {k:"reloj",   sx:.70, sy:2.40,sz:.42,hide:1},
+ {k:"consola", sx:1.50,sy:.88, sz:.40}];
+const BUILD={armario:armario,aparador:aparador,vitrina:vitrina,arcon:arcon,reloj:reloj,consola:consola};
 function onWall(fl,f,r,K){
   const side=ri(0,3);
   let px,pz,sx=K.sx,sz=K.sz;
@@ -468,7 +615,8 @@ function onWall(fl,f,r,K){
     pz=(side===2?r.z0+sz/2+.18:r.z1-sz/2-.18);}
   if(!isFinite(px)||!isFinite(pz))return false;
   if(!spotFree(fl,f,px,pz,Math.max(sx,sz)))return false;
-  props.push({x:px,y:fl.y,z:pz,sx:sx,sy:K.sy,sz:sz,step:K.sy<=.8?1:0,hide:K.hide?1:0});
+  props.push({x:px,y:fl.y,z:pz,sx:sx,sy:K.sy,sz:sz,step:K.sy<=.8?1:0,hide:K.hide?1:0,draw:0});
+  BUILD[K.k](px,fl.y,pz,sx,K.sy,sz);
   if(K.sy<1.2&&R()<.75){                       // un cuadro grande encima
     const ph=.95,pw=Math.min(1.4,Math.max(sx,sz)*.9),yy=fl.y+1.45;
     if(side===0)props.push({x:r.x0+.14,y:yy,z:pz,sx:.09,sy:ph,sz:pw,hang:1});
@@ -479,29 +627,37 @@ function onWall(fl,f,r,K){
 function setComedor(fl,f,r){                    // mesa larga con sus sillas
   const L=Math.min(3.6,(r.x1-r.x0)*.46),D=1.25;
   if(!spotFree(fl,f,r.cx,r.cz,Math.max(L,D)+.9))return false;
-  props.push({x:r.cx,y:fl.y,z:r.cz,sx:L,sy:.78,sz:D,step:1});
+  props.push({x:r.cx,y:fl.y,z:r.cz,sx:L,sy:.78,sz:D,step:1,draw:0});
+  mesaLarga(r.cx,fl.y,r.cz,L,.78,D);
+  const sil=[];
   for(let k=0;k<2;k++){const ox=(k?1:-1)*L*.24;
-    props.push({x:r.cx+ox,y:fl.y,z:r.cz-D/2-.48,sx:.48,sy:1.15,sz:.48,hide:1});
-    props.push({x:r.cx+ox,y:fl.y,z:r.cz+D/2+.48,sx:.48,sy:1.15,sz:.48,hide:1});}
-  props.push({x:r.cx-L/2-.5,y:fl.y,z:r.cz,sx:.48,sy:1.15,sz:.48,hide:1});
-  props.push({x:r.cx+L/2+.5,y:fl.y,z:r.cz,sx:.48,sy:1.15,sz:.48,hide:1});
+    sil.push([r.cx+ox,r.cz-D/2-.48]);sil.push([r.cx+ox,r.cz+D/2+.48]);}
+  sil.push([r.cx-L/2-.5,r.cz]);sil.push([r.cx+L/2+.5,r.cz]);
+  for(let i=0;i<sil.length;i++){
+    props.push({x:sil[i][0],y:fl.y,z:sil[i][1],sx:.48,sy:1.15,sz:.48,hide:1,draw:0});
+    silla(sil[i][0],fl.y,sil[i][1],.48,1.15,.48);}
   return true;}
 function setSalon(fl,f,r){                      // sofá de respaldo alto y su mesita
   const hz=R()<.5,SW=2.4,SD=.98;
   const sx=hz?SW:SD,sz=hz?SD:SW;
   const px=r.cx+rf(-1.2,1.2),pz=r.cz+rf(-1.2,1.2);
   if(!spotFree(fl,f,px,pz,Math.max(sx,sz)))return false;
-  props.push({x:px,y:fl.y,z:pz,sx:sx,sy:.46,sz:sz,step:1});
-  if(hz)props.push({x:px,y:fl.y,z:pz-SD/2+.15,sx:sx,sy:1.06,sz:.3,hide:1});
-  else  props.push({x:px-SD/2+.15,y:fl.y,z:pz,sx:.3,sy:1.06,sz:sz,hide:1});
+  props.push({x:px,y:fl.y,z:pz,sx:sx,sy:.46,sz:sz,step:1,draw:0});
+  if(hz)props.push({x:px,y:fl.y,z:pz-SD/2+.15,sx:sx,sy:1.06,sz:.3,hide:1,draw:0});
+  else  props.push({x:px-SD/2+.15,y:fl.y,z:pz,sx:.3,sy:1.06,sz:sz,hide:1,draw:0});
+  sofa(px,fl.y,pz,sx,1.06,sz,hz);
   const mx=px+(hz?0:1.5),mz=pz+(hz?1.5:0);
-  if(spotFree(fl,f,mx,mz,1.2))props.push({x:mx,y:fl.y,z:mz,sx:1.1,sy:.5,sz:.75,step:1});
+  if(spotFree(fl,f,mx,mz,1.2)){
+    props.push({x:mx,y:fl.y,z:mz,sx:1.1,sy:.5,sz:.75,step:1,draw:0});
+    patas(mx,fl.y,mz,1.1,.75,.44,.045,"w");D(mx,fl.y+.47,mz,1.1,.06,.75,"w");}
   return true;}
 function setAlcoba(fl,f,r){                     // cama con dosel
   const px=r.cx+rf(-1,1),pz=r.cz+rf(-1,1);
   if(!spotFree(fl,f,px,pz,2.6))return false;
-  props.push({x:px,y:fl.y,z:pz,sx:2.0,sy:.62,sz:2.1,step:1});
-  props.push({x:px,y:fl.y,z:pz-1.15,sx:2.0,sy:1.55,sz:.2,hide:1});      // cabecero, fuera del colchón
+  props.push({x:px,y:fl.y,z:pz,sx:2.0,sy:.62,sz:2.1,step:1,draw:0});
+  camaDosel(px,fl.y,pz);
+  props.push({x:px,y:fl.y,z:pz-1.15,sx:2.0,sy:1.55,sz:.2,hide:1,draw:0});
+  cabecero(px,fl.y,pz-1.15,2.0,1.55,.2);      // cabecero, fuera del colchón
   for(let k=0;k<4;k++){                                                  // los cuatro postes
     const ox=(k&1?1:-1)*.95,oz=(k&2?1:-1)*1.0;
     props.push({x:px+ox,y:fl.y,z:pz+oz,sx:.13,sy:2.35,sz:.13,hang:1});}
@@ -510,24 +666,25 @@ function setAlcoba(fl,f,r){                     // cama con dosel
 function setPiano(fl,f,r){
   const px=r.cx+rf(-1,1),pz=r.cz+rf(-1,1);
   if(!spotFree(fl,f,px,pz,2.6))return false;
-  props.push({x:px,y:fl.y,z:pz,sx:2.3,sy:.98,sz:1.5,hide:1});
-  props.push({x:px,y:fl.y+.98,z:pz-.1,sx:2.2,sy:.1,sz:1.2,hang:1});
+  props.push({x:px,y:fl.y,z:pz,sx:2.3,sy:.98,sz:1.5,hide:1,draw:0});
+  piano(px,fl.y,pz);
   return true;}
 function setBiombo(fl,f,r){                     // el escondite más claro de todos
   const hz=R()<.5,BW=2.2;
   const px=rf(r.x0+1.8,r.x1-1.8),pz=rf(r.z0+1.8,r.z1-1.8);
   if(!isFinite(px)||!isFinite(pz))return false;
   if(!spotFree(fl,f,px,pz,BW))return false;
-  props.push({x:px,y:fl.y,z:pz,sx:hz?BW:.18,sy:1.9,sz:hz?.18:BW,hide:1});
+  props.push({x:px,y:fl.y,z:pz,sx:hz?BW:.18,sy:1.9,sz:hz?.18:BW,hide:1,draw:0});
+  biombo(px,fl.y,pz,hz?BW:.18,1.9,hz?.18:BW,hz);
   return true;}
 function setEstatua(fl,f,r){
   const px=rf(r.x0+1.4,r.x1-1.4),pz=rf(r.z0+1.4,r.z1-1.4);
   if(!isFinite(px)||!isFinite(pz)||!spotFree(fl,f,px,pz,1.2))return false;
-  props.push({x:px,y:fl.y,z:pz,sx:.75,sy:1.15,sz:.75,hide:1,m:"s"});
-  props.push({x:px,y:fl.y+1.15,z:pz,sx:.46,sy:1.05,sz:.4,hang:1,m:"s"});
+  props.push({x:px,y:fl.y,z:pz,sx:.75,sy:1.15,sz:.75,hide:1,m:"s",draw:0});
+  estatua(px,fl.y,pz,.75,2.2,.75);
   return true;}
 function genProps(){
-  props=[];nooks=[];
+  props=[];nooks=[];deco=[];
   for(let f=0;f<2;f++){
     const fl=F[f];
     for(let i=0;i<fl.rooms.length;i++){
@@ -538,7 +695,8 @@ function genProps(){
         for(let k=0;k<2;k++){
           const px=(k?r.x1-.55:r.x0+.55),pz=rf(r.z0+2.2,r.z1-2.2);
           if(spotFree(fl,f,px,pz,1.2))
-            props.push({x:px,y:fl.y,z:pz,sx:.7,sy:.55,sz:1.9,step:1});}
+            {props.push({x:px,y:fl.y,z:pz,sx:.7,sy:.55,sz:1.9,step:1,draw:0});
+             banco(px,fl.y,pz,.7,.55,1.9);}}
         // la lámpara grande del vestíbulo, colgada del techo de arriba
         const cy=F[1].y+WALL_H;
         for(let c=0;c<9;c++)                                  // la cadena, a la vista
@@ -554,7 +712,8 @@ function genProps(){
         if(w>h&&h>=2.0&&R()<.6){
           const px=rf(r.x0+2,r.x1-2);
           if(spotFree(fl,f,px,r.z0+.4,1.0,.5))
-            props.push({x:px,y:fl.y,z:r.z0+.42,sx:1.0,sy:1.1,sz:.42,step:0});}
+            {props.push({x:px,y:fl.y,z:r.z0+.42,sx:1.0,sy:1.1,sz:.42,step:0,draw:0});
+             consola(px,fl.y,r.z0+.42,1.0,1.1,.42);}}
         continue;}
       if(w<3.6||h<3.6)continue;
       const med=w>5.6&&h>5.6,big=w>7.6&&h>7.6;
@@ -575,7 +734,8 @@ function genProps(){
         const tw=Math.min(3.4,w*.42),td=Math.min(3.0,h*.4);
         const px=r.x1-tw/2-.3,pz=r.z1-td/2-.3;
         if(spotFree(fl,f,px,pz,Math.max(tw,td)))
-          props.push({x:px,y:fl.y,z:pz,sx:tw,sy:.75,sz:td,step:1,m:"s"});}
+          {props.push({x:px,y:fl.y,z:pz,sx:tw,sy:.75,sz:td,step:1,m:"s",draw:0});
+           tarima(px,fl.y,pz,tw,.75,td);}}
       // candelabro, colgado del techo de verdad
       if(R()<.55&&!holeNear(r.cx,r.cz,1.0)){
         const cy=fl.y+WALL_H;
@@ -599,7 +759,8 @@ function genProps(){
       if(R()<.34){
         const cx2=rf(r.x0+1.8,r.x1-1.8);
         if(spotFree(fl,f,cx2,r.z0+.45,2.1)){
-          props.push({x:cx2,y:fl.y,z:r.z0+.45,sx:2.1,sy:1.25,sz:.7,m:"s"});
+          props.push({x:cx2,y:fl.y,z:r.z0+.45,sx:2.1,sy:1.25,sz:.7,m:"s",draw:0});
+          chimenea(cx2,fl.y,r.z0+.45,2.1,1.25,.7);
           props.push({x:cx2,y:fl.y+1.25,z:r.z0+.3,sx:1.5,sy:WALL_H-1.25,sz:.42,hang:1,m:"s"});}}
     }
   }
@@ -816,10 +977,28 @@ function build3D(){
           pw.position.set(d.x+(d.vert?0:DW/2),fl.y,d.z+(d.vert?DW/2:0));
           pw.rotation.y=d.vert?-Math.PI/2:0;d.baseRot2=pw.rotation.y;d.mesh2=pw;world.add(pw);}
       } else {
-        // un arco: dintel bajo y jambas gruesas, se reconoce al tacto del eco
-        if(d.vert)jamb(JD*1.5,JT*2.2,DW+JT*2,d.x,fl.y+WALL_H-.55,d.z);
-        else jamb(DW+JT*2,JT*2.2,JD*1.5,d.x,fl.y+WALL_H-.55,d.z);
+        /* un arco de verdad: siete hiladas que van cerrando el hueco hasta la
+           clave. Al eco le llega como un borde curvo, no como un dintel recto. */
+        const A=DW/2,RIS=.80,N=7,SPR=WALL_H-1.20,TH=JD*1.55;
+        for(let k=0;k<N;k++){
+          const t=(k+1)/N, hw=A*Math.sqrt(Math.max(0,1-t*t));
+          const hh=RIS/N, cy=fl.y+SPR+(k+.5)*hh, an=A+JT-hw;
+          if(an<=.02)continue;
+          for(const q of [-1,1]){const off=q*(hw+an/2);
+            if(d.vert)jamb(TH,hh+.004,an,d.x,cy,d.z+off);
+            else      jamb(an,hh+.004,TH,d.x+off,cy,d.z);}}
+        const cy2=fl.y+SPR+RIS, hh2=WALL_H-SPR-RIS;     // de la clave al techo
+        if(hh2>.02){
+          if(d.vert)jamb(TH,hh2,DW+JT*2,d.x,cy2+hh2/2,d.z);
+          else      jamb(DW+JT*2,hh2,TH,d.x,cy2+hh2/2,d.z);}
+        for(const q of [-1,1]){                          // la imposta del arranque
+          const off=q*(A+JT/2);
+          if(d.vert)jamb(TH+.10,.13,JT+.12,d.x,fl.y+SPR,d.z+off);
+          else      jamb(JT+.12,.13,TH+.10,d.x+off,fl.y+SPR,d.z);}
       }
+      if(!d.arch){                                   // el paño sobre la hoja
+        if(d.vert)jamb(JD,.13,DW+JT*2,d.x,fl.y+WALL_H-.225,d.z);
+        else      jamb(DW+JT*2,.13,JD,d.x,fl.y+WALL_H-.225,d.z);}
       if(d.vert){
         jamb(JD,WALL_H,JT,d.x,fl.y+WALL_H/2,d.z-DW/2-JT/2);
         jamb(JD,WALL_H,JT,d.x,fl.y+WALL_H/2,d.z+DW/2+JT/2);
@@ -833,8 +1012,12 @@ function build3D(){
   for(let s=0;s<stairs.length;s++){const st=stairs[s];
     for(let i=0;i<st.steps.length;i++){const p=st.steps[i];box(p.w,p.h,p.d,p.x,p.h/2,p.z+p.d/2);}}
   for(let i=0;i<props.length;i++){const q=props[i];
+    if(q.draw===0)continue;                      // su detalle lo dibuja deco
     const B=(q.m==="f")?BC:((q.m==="m")?BM:((q.m==="s")?BS:BW));
     bBox(B,q.sx,q.sy,q.sz,q.x,q.y+q.sy/2,q.z);}
+  for(let i=0;i<deco.length;i++){const q=deco[i];
+    const B=(q.m==="f")?BC:((q.m==="m")?BM:((q.m==="s")?BS:BW));
+    bBox(B,q.sx,q.sy,q.sz,q.x,q.y,q.z);}         // deco guarda el centro en y
   bFlush(BS,mat);bFlush(BJ,matJamb);bFlush(BW,matWood);bFlush(BC,matCloth);bFlush(BM,matMetal);
   BS=null;BJ=null;BW=null;BC=null;BM=null;
   if(!HALO_RED){HALO_RED=haloTex(214,64,56,true);HALO_AMBER=haloTex(226,150,70);HALO_DARK=haloTex(150,40,36,true);}
@@ -1333,6 +1516,52 @@ function hostLambs(){
   send({t:"L",l:lambs.map(function(L){return [L.x,L.y,L.z,L.alive?1:0,L.drained?1:0];})});
 }
 
+
+/* ══════════ el cuerpo: respiración, corazón y tensión ══════════
+   Nada de esto es información nueva: es tu cuerpo reaccionando a lo que YA
+   has oído. El corazón no te dice dónde está nadie, te dice que tienes miedo. */
+let breathNext=0,heartNext=0,tension=0,breathPhase=0,lastHeart=-9;
+function breathe(exert,inhale){
+  if(!AC)return;
+  const v=(0.016+exert*0.055)*(inhale?1:0.8);
+  noiseB(inhale?.45:.55, v, 260+exert*520);
+}
+function heartBeat(d){
+  if(!AC)return;
+  const v=0.045+d*0.13;
+  tone(50,.11,v,"sine");
+  tone(38,.17,v*0.62,"sine",null,.135);
+  lastHeart=now();
+}
+/* un ruido cerca te encoge: sube la tensión y suelta un grave que se va solo */
+function startle(x,y,z,k){
+  const d=Math.hypot(x-me.x,z-me.z)+Math.abs(y-me.y)*1.4;
+  if(d>15)return;
+  if(occlusion(x,y,z,me.x,me.y,me.z)>=2)return;      // si no te ha llegado, no te asusta
+  const w=(1-d/15)*k;
+  if(w<=0.04)return;
+  tension=Math.min(1,tension+w*0.85);
+  if(AC&&w>0.25)tone(34+Math.random()*6,1.9,0.022+w*0.05,"sine");
+}
+function bodyTick(t,dtr,moving){
+  tension=Math.max(0,tension-dtr*0.30);
+  if(!running||me.dead)return;
+  const g=me.gait|0;
+  const exert=moving?(g===0?1:(g===1?0.45:0.28)):0.18;
+  const rate=2.9-exert*1.35;                          // de 2,9 s a 1,5 s por ciclo
+  if(t>breathNext){
+    breathPhase=1-breathPhase;
+    breathNext=t+rate*(breathPhase?0.42:0.58);
+    breathe(exert,breathPhase);
+  }
+  // el miedo: lo que has oído cerca, la última vida, quedarte sin balas,
+  // y sobre todo beber, que son tres segundos a cuerpo descubierto
+  const danger=Math.max(0,Math.min(1,
+    tension*0.60 + (me.lives===1?0.34:0) + (me.ammo<=0?0.12:0) + (me.drinking>0?0.62:0)));
+  const hr=1.30-danger*0.80;                          // de 1,3 s a 0,5 s entre latidos
+  if(t>heartNext){heartNext=t+hr;heartBeat(danger);}
+}
+
 /* ══════════ el pulso ══════════ */
 function pulseLevel(){
   if(pulseCharge<0.33)return 0;
@@ -1382,13 +1611,14 @@ function remoteEvent(m,mine){
     const G=GAIT[m.b||0]||GAIT[0];
     const q=(typeof m.q==="number"&&isFinite(m.q))?Math.max(.15,Math.min(1.6,m.q)):1;
     const vol=(m.land?.55:G.vol)*q,cut=m.land?1200:G.cut;
-    if(!mine)worldSound(m.x,m.y,m.z,function(D){noiseB(m.land?.14:.09,vol,cut,D);});
+    if(!mine){worldSound(m.x,m.y,m.z,function(D){noiseB(m.land?.14:.09,vol,cut,D);});
+      startle(m.x,m.y,m.z,m.land?0.75:0.34*q);}
     addEchoHeard(m.x,m.y,m.z,(m.land?.7:G.echo)*q,(m.land?6.5:G.eR)*Math.min(1,q+.25));return;}
   if(m.kind==="door"){
     worldSound(m.x,m.y||1.2,m.z,function(D){noiseB(.16,.3,900,D);tone(m.o?220:140,.25,.10,"sawtooth",D);});
     addEchoHeard(m.x,m.y||1.2,m.z,.55,5);return;}
   if(m.kind==="shot"){
-    if(!mine)worldSound(m.x,m.y,m.z,function(D){noiseB(.32,.6,2800,D);});
+    if(!mine){worldSound(m.x,m.y,m.z,function(D){noiseB(.32,.6,2800,D);});startle(m.x,m.y,m.z,1.0);}
     else noiseB(.32,.5,2800);
     addEchoHeard(m.x,m.y,m.z,1.3,13,[1.0,0.72,0.55]);return;}
   if(m.kind==="pulse"){
@@ -1406,11 +1636,13 @@ function remoteEvent(m,mine){
         g.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+.13);
         o.connect(g);g.connect(D);o.start();o.stop(AC.currentTime+.16);});
       // el pulso ajeno también te dibuja a ti, desde donde salió
+      startle(m.x,m.y,m.z,0.35+0.30*m.lv);
       addEchoHeard(m.x,m.y,m.z,0.8,Math.min(m.see,P.hear),[0.72,0.80,0.98]);
       if(occlusion(m.x,m.y,m.z,me.x,me.y,me.z)===0)markMemory(m.x,m.z,floorOf(m.y),Math.min(m.see,14));
     }
     return;}
   if(m.kind==="bite"){
+    if(!mine)startle(m.x,m.y,m.z,0.85);
     worldSound(m.x,m.y,m.z,function(D){noiseB(.12,.22,1400,D);tone(160,.2,.12,"sawtooth",D);});
     addEchoHeard(m.x,m.y,m.z,.5,4.5,[1.0,0.5,0.45]);return;}
   if(m.kind==="drink"){
@@ -1960,9 +2192,7 @@ function frameBody(){
         d.mesh2.rotation.y+=(t2-d.mesh2.rotation.y)*Math.min(1,dt*7);}}
     // la memoria se apaga poco a poco
     if(t>memNext){memNext=t+MEM_TICK;decayMemory();}
-    // tu propio corazón cuando te queda un cuerpo: solo lo oyes tú
-    if(!me.dead&&me.lives===1&&AC&&t>hbNext){hbNext=t+0.92;
-      tone(54,.18,.13,"sine");tone(40,.26,.09,"sine",null,.15);}
+    bodyTick(t,dtr,!!(keys["w"]||keys["a"]||keys["s"]||keys["d"]));
     // red
     if(t>netNext){netNext=t+1/15;
       send({t:"s",id:myId,x:me.x,y:me.y,z:me.z,yaw:me.yaw,d:me.dead,cr:crouch?1:0,g:me.gait|0,
@@ -2039,9 +2269,11 @@ function frameBody(){
     else{Ls.setPosition(me.x,me.y+eyeH,me.z);Ls.setOrientation(fx,fy,fz,0,1,0);}}
   const eyeTarget=me.dead?0.4:(crouch?EYE_CROUCH:EYE);
   eyeH+=(eyeTarget-eyeH)*Math.min(1,dt*11);
-  camera.position.set(me.x,me.y+eyeH,me.z);
+  // el pecho sube y baja, y más si vienes corriendo
+  const brSw=(running&&!me.dead)?Math.sin(t*1.9+tension*3.0)*(0.008+tension*0.012):0;
+  camera.position.set(me.x,me.y+eyeH+brSw,me.z);
   const cp2=Math.cos(me.pitch);
-  camera.lookAt(me.x+Math.sin(me.yaw)*cp2,me.y+eyeH+Math.sin(me.pitch),me.z+Math.cos(me.yaw)*cp2);
+  camera.lookAt(me.x+Math.sin(me.yaw)*cp2,me.y+eyeH+brSw+Math.sin(me.pitch),me.z+Math.cos(me.yaw)*cp2);
 
   uni.uTime.value=t;
   for(let i=0;i<MAX_ECHO;i++){const e=echoes[i];
