@@ -141,7 +141,7 @@ const EYE=1.62,EYE_CROUCH=1.02,RAD=.32,JUMP_V=6.0;
 const MAX_ECHO=14,ECHO_SPEED=8.2,AFTERGLOW=1.6;
 const MEM_TICK=0.25, MEM_FADE=16;   // segundos hasta olvidar del todo
 const SOUND_MS=343;                    // velocidad del sonido, para los retornos
-const VERSION="v26 · 16 sep";         // sube con cada cambio que pides: así sabes qué juegas
+const VERSION="v27 · 16 sep";         // sube con cada cambio que pides: así sabes qué juegas
 const LAMBS_TO_WIN=2;                 // solo se gana bebiendo
 const LIVES=3;                        // tres cuerpos y se acabó
 const START_AMMO=2, MAX_AMMO=2, AMMO_PICKUPS=8;
@@ -884,12 +884,21 @@ function surfMat(ret,gx,gy,gz,rough){
 /* la carne no es piedra: devuelve un eco corto, que se apaga en 0,6 s
    en vez de los 1,6 s de un muro, y no entra en la memoria del mapa */
 const BODY_GLOW=0.6/AFTERGLOW;
-function bodyMat(r,g,b){
+/* ecos propios: un material con esta lista aparte NO se entera de los ecos del
+   mundo. Se lo tenemos que dar nosotros, uno a uno, cuando toca. */
+function privEchoes(u){
+  u.uEchoPos={value:[]};u.uEchoT={value:[]};u.uEchoS={value:[]};u.uEchoR={value:[]};u.uEchoC={value:[]};
+  for(let i=0;i<MAX_ECHO;i++){u.uEchoPos.value.push(new THREE.Vector3());
+    u.uEchoT.value.push(-99);u.uEchoS.value.push(0);u.uEchoR.value.push(1);
+    u.uEchoC.value.push(new THREE.Vector3(1,1,1));}
+  return u;}
+function bodyMat(r,g,b,priv){
   const u=Object.assign({},uni);
   u.uTint={value:new THREE.Vector3(r,g,b)};
   u.uMemK={value:0};                       // la memoria es tu mapa, no un radar de cuerpos
   u.uGlowK={value:BODY_GLOW};
   u.uRet={value:0.78};u.uRough={value:0};u.uGrain={value:new THREE.Vector3(0,0,0)};
+  if(priv)privEchoes(u);
   return new THREE.ShaderMaterial({uniforms:u,side:THREE.DoubleSide,
     vertexShader:mat.vertexShader,fragmentShader:mat.fragmentShader});}
 const matLamb=bodyMat(1,1,1);
@@ -1361,6 +1370,62 @@ function addEcho(x,y,z,s,Rr,col){
   echoes.push({x:x,y:y,z:z,t:now(),s:s,R:Rr,c:col||[0.90,0.88,0.82]});
   if(echoes.length>MAX_ECHO)echoes.shift();}
 
+/* ══════════ fotografías ══════════
+   Un cuerpo no se ve: se fotografía. Cuando un chillido alcanza a alguien, su
+   silueta queda revelada EN EL SITIO EXACTO DONDE ESTABA, y ahí se queda hasta
+   apagarse. Si el otro se mueve, la foto no lo sigue: se despega de él y lo que
+   te queda es una posición vieja. Un ruido flojo —un paso, una puerta— no
+   revela ninguna figura: solo el halo del suelo donde sonó. */
+const PHOTOS=6, PHOTO_MIN=0.45, PHOTO_LIFE=AFTERGLOW*BODY_GLOW+0.25;
+let photos=[];
+function photoMesh(){
+  const m=bodyMat(1,.94,.88,true),g=new THREE.Group();
+  const b=new THREE.Mesh(new THREE.BoxGeometry(.44,1.2,.3),m);b.position.y=.6;
+  const h=new THREE.Mesh(new THREE.BoxGeometry(.26,.28,.26),m);h.position.y=1.4;
+  g.add(b);g.add(h);g.visible=false;g.userData.mat=m;scene.add(g);
+  return{mesh:g,mat:m,until:0};}
+function clearPhotos(){for(let i=0;i<photos.length;i++){photos[i].mesh.visible=false;photos[i].until=0;}}
+/* cuánto devuelve un cuerpo según cómo se mueva: es la misma escala de siempre,
+   solo que ahora se congela en la foto en vez de seguir al cuerpo */
+function bodyReturn(p,t){
+  const mv=(t-(p.lastMove||0)<0.5),g=p.g|0;
+  return mv?(g===2?0.08:(g===1?0.15:0.52)):(p.cr?0.14:0.30);}
+function takePhoto(p,e,t){
+  if(!photos.length)for(let i=0;i<PHOTOS;i++)photos.push(photoMesh());
+  let P=photos[0],old=1e9;
+  for(let i=0;i<photos.length;i++){
+    if(photos[i].until<=t){P=photos[i];old=-1;break;}
+    if(photos[i].until<old){old=photos[i].until;P=photos[i];}}
+  P.mesh.position.set(p.x,p.y,p.z);
+  P.mesh.rotation.y=p.yaw||0;
+  P.mesh.scale.y=p.cr?.62:1;
+  const k=bodyReturn(p,t);
+  P.mat.uniforms.uTint.value.set(k,k*.94,k*.88);
+  const U=P.mat.uniforms;                     // el único eco que revela esta foto
+  U.uEchoPos.value[0].set(e.x,e.y,e.z);
+  U.uEchoT.value[0]=e.t;U.uEchoS.value[0]=e.s;U.uEchoR.value[0]=e.R;
+  U.uEchoC.value[0].set(e.c[0],e.c[1],e.c[2]);
+  for(let i=1;i<MAX_ECHO;i++)U.uEchoS.value[i]=0;
+  P.mesh.visible=true;P.until=t+PHOTO_LIFE;}
+function tickPhotos(t){
+  for(let i=0;i<photos.length;i++)
+    if(photos[i].mesh.visible&&t>photos[i].until)photos[i].mesh.visible=false;
+  if(!running)return;
+  for(let j=0;j<echoes.length;j++){const e=echoes[j];
+    if(e.s<PHOTO_MIN)continue;                 // un eco flojo no dibuja una figura
+    if(!e.ph)e.ph={};
+    const r=(t-e.t)*ECHO_SPEED;
+    for(const id in peers){const p=peers[id];
+      if(p.x===undefined||p.dead||e.ph[id])continue;
+      const dx=p.x-e.x,dy=(p.y+0.9)-e.y,dz=p.z-e.z;
+      const d=Math.sqrt(dx*dx+dy*dy+dz*dz);
+      if(r<d)continue;                         // la onda todavía no ha llegado hasta él
+      e.ph[id]=1;                              // llegó: esta foto ya está tomada o descartada
+      if(e.s*Math.max(0,1-d/e.R)<PHOTO_MIN)continue;   // le llegó demasiado floja
+      if(!bodySeen(p.x,p.y,p.z,!!p.cr))continue;       // hay algo en medio
+      takePhoto(p,e,t);}}
+}
+
 /* ══════════ red ══════════ */
 let peer=null,isHost=false,hostConn=null,myId="me",myCode="";
 const conns={};
@@ -1374,8 +1439,11 @@ function code4(){const A="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";let s="";
 function send(m,except){
   if(isHost){for(const id in conns)if(id!==except&&conns[id].open)conns[id].send(m);}
   else if(hostConn&&hostConn.open)hostConn.send(m);}
+/* El cuerpo vivo ya no se ilumina con el eco: de eso se encargan las
+   fotografías. Lo único que lo delata es tenerlo encima (el término de tacto
+   del shader, poco más de un metro). */
 function avatar(){
-  const g=new THREE.Group(),m=bodyMat(1,.94,.88);
+  const g=new THREE.Group(),m=bodyMat(.85,.80,.75,true);
   const b=new THREE.Mesh(new THREE.BoxGeometry(.44,1.2,.3),m);b.position.y=.6;
   const h=new THREE.Mesh(new THREE.BoxGeometry(.26,.28,.26),m);h.position.y=1.4;
   g.add(b);g.add(h);g.visible=false;g.userData.mat=m;scene.add(g);return g;}
@@ -2123,7 +2191,7 @@ function startMatch(){
   if(!F[0]){genMansion(seed);build3D();}
   phase="play";running=true;winner=null;tStart=now();
   memData.fill(0);memTex.needsUpdate=true;
-  echoes.length=0;
+  echoes.length=0;clearPhotos();
   me.ammo=START_AMMO;me.lambs=0;me.kills=0;me.lives=LIVES;me.out=false;me.dead=false;me.drinking=0;shotCD=0;
   for(const id in peers){const P=peers[id];P.lambs=0;P.kills=0;P.lives=LIVES;P.out=false;}
   const s=(spawnPick!=null&&spawns[spawnPick])?spawns[spawnPick]:farSpawn();
@@ -2338,10 +2406,11 @@ function frameBody(){
   for(const id in peers){const p=peers[id];if(!p.mesh||p.x===undefined)continue;
     p.mesh.position.set(p.x,p.y,p.z);p.mesh.rotation.y=p.yaw||0;
     p.mesh.scale.y=p.cr?.62:1;
-    const mov=(t-(p.lastMove||0)<0.5),g=p.g|0;
-    const k=mov?(g===2?0.08:(g===1?0.15:0.52)):(p.cr?0.14:0.30);
-    p.mesh.visible=running&&!p.dead&&bodySeen(p.x,p.y,p.z,!!p.cr);
-    if(p.mesh.userData.mat)p.mesh.userData.mat.uniforms.uTint.value.set(k,k*.94,k*.88);}
+    // el cuerpo vivo solo se dibuja si lo tienes encima: más lejos sería una
+    // silueta negra recortada contra el muro, que delata igual que una brillante
+    const near=Math.hypot(p.x-me.x,p.z-me.z)+Math.abs(p.y-me.y);
+    p.mesh.visible=running&&!p.dead&&near<1.35&&bodySeen(p.x,p.y,p.z,!!p.cr);}
+  tickPhotos(t);
   for(let i=0;i<lambs.length;i++){const L=lambs[i];
     if(!L||!L.mesh)continue;
     L.mesh.visible=running&&!L.drained;
