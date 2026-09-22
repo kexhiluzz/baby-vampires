@@ -222,7 +222,7 @@ const MAX_ECHO=14,ECHO_SPEED=8.2,AFTERGLOW=1.6;
 const GLOW_GRITO=0.40, GLOW_DISPARO=0.38;
 const MEM_TICK=0.25, MEM_FADE=16;   // segundos hasta olvidar del todo
 const SOUND_MS=343;                    // velocidad del sonido, para los retornos
-const VERSION="v45 · 21 sep";         // sube con cada cambio que pides: así sabes qué juegas
+const VERSION="v47 · 22 sep";         // sube con cada cambio que pides: así sabes qué juegas
 const LAMBS_TO_WIN=2;                 // solo se gana bebiendo
 const LIVES=3;                        // tres cuerpos y se acabó
 /* No hay balas por el suelo: el cargador se rellena solo, una bala cada trece
@@ -232,9 +232,11 @@ const START_AMMO=2, MAX_AMMO=2, RELOAD=13;
 const SHOT_GAP=4.0;
 /* Los corderos no se quedan quietos esperándote: cada LAMB_MOVE segundos el que
    sigue vivo se esfuma y aparece en otra punta de la casa. Y un cadáver dura lo
-   mismo antes de desvanecerse. Sangre es una carrera, no un campamento: si ves
-   el faro rojo y no sales ya, lo pierdes. */
-const LAMB_COUNT=1, LAMB_MOVE=22, LAMB_CORPSE=22;
+   mismo antes de desvanecerse. Sangre es una carrera, no un campamento — pero
+   con 22 s la carrera era imposible: cruzar la mansión de punta a punta andando
+   son treinta y pico, así que el faro se apagaba antes de llegar. Con 45 da
+   tiempo a ir, y sigue sin darlo para ir con calma. */
+const LAMB_COUNT=1, LAMB_MOVE=45, LAMB_CORPSE=45;
 const RESPAWN=5, DRINK_SECS=3.0;
 /* echo/eR: lo que el paso dibuja en el suelo. El RADIO se queda corto a
    propósito —un paso no te enseña la casa— pero el brillo sube: antes el halo
@@ -252,10 +254,21 @@ const RESPAWN=5, DRINK_SECS=3.0;
 const GAIT=[{sp:3.1,stride:.62,vol:1.30,cut:1500,echo:1.45,eR:3.8,rev:.55,pres:0},
             {sp:1.45,stride:.95,vol:.46,cut:700,echo:1.15,eR:1.9,rev:.14,pres:1.00},
             {sp:1.15,stride:1.00,vol:.46,cut:700,echo:1.15,eR:1.9,rev:0,pres:1.00}];
+/* Lo que tarda el halo del suelo en encenderse DESPUÉS de la pisada. El ruido
+   sale al instante —es el pie contra la madera— pero el eco que te dibuja el
+   suelo es el viaje de vuelta de ese ruido, y antes salía en el mismo
+   fotograma: pisada y luz pegadas, sin lectura posible. Con este respiro
+   primero oyes y luego ves, que es el orden correcto. */
+const PASO_RETARDO=0.26;
 /* los tres modos del chillido: lo que ves y quién te oye */
+/* see = hasta dónde se te enciende la casa. El chillido entero SIGUE llegando
+   a 27 m: es tu jugada cara y tiene que seguir valiendo la pena. Lo que se
+   recorta son los dos baratos, que enseñaban casi tanto por mucho menos
+   riesgo: el susurro pasa de 6,5 a 4,6 (te alumbra la habitación, no el
+   pasillo entero) y la llamada de 14 a 10,5. Quién te OYE no cambia. */
 const PULSE=[
- {n:"susurro", see:6.5, hear:4,  cd:0.95, vol:.10, f:2400},
- {n:"llamada", see:14,  hear:17, cd:2.10, vol:.26, f:1700},
+ {n:"susurro", see:4.6, hear:4,  cd:0.95, vol:.10, f:2400},
+ {n:"llamada", see:10.5,hear:17, cd:2.10, vol:.26, f:1700},
  {n:"chillido",see:27,  hear:46, cd:3.80, vol:.55, f:1150}];
 const AK=["goteo","corriente","reloj","crujido","viento","cañería","ratas","campana"];
 const AGAP={goteo:2.1,corriente:3.4,reloj:1.05,crujido:4.2,viento:3.6,"cañería":2.8,ratas:3.1,campana:6.5};
@@ -1948,6 +1961,19 @@ const peers={};
 const lambs=[];
 let phase="entry",running=false,seed=0,winner=null,tStart=0;
 const echoes=[];
+/* ecos con retardo: se apuntan aquí y se sueltan cuando toca. Se resuelven en
+   el bucle de dibujo, no con setTimeout, para que un fotograma perdido no los
+   descoloque ni sobrevivan al final de la partida. */
+let ecosPend=[];
+function ecoTarde(x,y,z,s,Rr,col,rev,seg){
+  ecosPend.push({x:x,y:y,z:z,s:s,R:Rr,c:col,rev:rev,at:now()+seg});
+  if(ecosPend.length>40)ecosPend.shift();}
+function tickEcosPend(t){
+  for(let i=ecosPend.length-1;i>=0;i--){const e=ecosPend[i];
+    if(t<e.at)continue;
+    ecosPend.splice(i,1);
+    const se=addEchoHeard(e.x,e.y,e.z,e.s,e.R,e.c);
+    if(se)se.rev=e.rev;}}
 let vy=0,grounded=true,crouch=false,eyeH=EYE,sens=1.0;
 let pulseCharge=0,pulseHeld=false,pulseAperture=1,pulseCD=0,lastPulse=-99,shotCD=0;
 let dbgOn=false,pulseCount=0,reloadT=0,lastPX,lastPY,lastPZ,camY;
@@ -2406,7 +2432,11 @@ function hostInitLambs(){
   for(let i=0;i<LAMB_COUNT;i++){
     const s=lambSpot();
     lambs.push({x:s.x,y:s.y,z:s.z,alive:true,drained:false,gone:0,stuck:0,
-      moveAt:now()+LAMB_MOVE*(0.55+0.45*Math.random()),   // desacompasados entre sí
+      /* El primero salía con un temporizador acortado al azar (entre 0,55 y 1
+         de LAMB_MOVE) para desacompasar dos corderos entre sí. Con uno solo no
+         hay a quién desacompasar y lo único que hacía era que la primera muda
+         llegara antes de tiempo: ahora son 45 s desde el principio. */
+      moveAt:now()+LAMB_MOVE*(LAMB_COUNT>1?(0.55+0.45*Math.random()):1),
       mesh:lambMesh(),vx:0,vz:0,next:0,turn:0});}
 }
 /* mudarse de verdad: lejos del sitio de antes, no a la sala de al lado */
@@ -2429,7 +2459,7 @@ function hostTickLambs(dt){
     const L=lambs[i];
     if(!L.alive){
       /* Tanto el cadáver que nadie se ha bebido como el que ya está seco duran
-         lo mismo: veintidós segundos y se desvanecen. Después vuelve a haber un
+         lo mismo: cuarenta y cinco segundos y se desvanecen. Después vuelve a haber un
          cordero vivo, pero en otra parte de la casa. */
       if(!L.gone)L.gone=now()+LAMB_CORPSE;
       else if(now()>L.gone)lambMudar(L,true);
@@ -2669,11 +2699,14 @@ function remoteEvent(m,mine){
     const vol=(m.land?.55:G.vol)*q,cut=m.land?1200:G.cut;
     if(!mine){worldSound(m.x,m.y,m.z,function(D){ if(m.land)noiseB(.16,vol,cut,D); else creak(vol,cut,D); });
       startle(m.x,m.y,m.z,m.land?0.75:0.34*q);}
-    const se=addEchoHeard(m.x,m.y,m.z,(m.land?.7:G.echo)*q,(m.land?6.5:G.eR)*Math.min(1,q+.25));
     /* Tu propio ruido te dibuja a ti. Es lo justo y además es lo cierto: el
        sonido sale de tus pies, rebota en tu cuerpo y vuelve. Corriendo te
-       delatas; de puntillas, no. */
-    if(se)se.rev=m.land?.55:(G.rev||0);
+       delatas; de puntillas, no. Y como es un viaje de ida y vuelta, ahora
+       llega tarde: PASO_RETARDO después del crujido, no a la vez.
+       La oclusión se mide al encenderse, no al pisar, así que si has cruzado
+       una puerta en ese cuarto de segundo el eco ya cuenta con ella. */
+    ecoTarde(m.x,m.y,m.z,(m.land?.7:G.echo)*q,(m.land?6.5:G.eR)*Math.min(1,q+.25),
+             null,m.land?.55:(G.rev||0),m.land?PASO_RETARDO*0.55:PASO_RETARDO);
     if(!mine&&!m.land&&G.pres)presencia(m.x,m.y,m.z,G.pres*q);
     return;}
   if(m.kind==="door"){
@@ -2706,7 +2739,9 @@ function remoteEvent(m,mine){
     else noiseB(.32,.5,2800);
     if(m.ax!==undefined&&(mine||occlusion(m.ax,m.ay,m.az,me.x,me.y,me.z)<2))
       trazo(m.ax,m.ay,m.az,m.bx,m.by,m.bz);
-    const es=addEchoHeard(m.x,m.y,m.z,1.3,13,[1.0,0.72,0.55]);
+    // el fogonazo alumbraba 13 m: casi una sala y media por un disparo que ya
+    // te delata de sobra por el ruido. Ahora ilumina lo que tienes al lado.
+    const es=addEchoHeard(m.x,m.y,m.z,1.3,8.5,[1.0,0.72,0.55]);
     if(es)es.g=GLOW_DISPARO;return;}
   if(m.kind==="pulse"){
     if(mine)return;
@@ -3050,7 +3085,7 @@ function entryRules(){
     "<p><b>Ganas bebiéndote dos corderos.</b> Matar no puntúa: solo quita de en medio un rato.</p>"+
     "<p>Matar al cordero tampoco cuenta: hay que <b>beber</b>, y beber tarda tres segundos en los que haces ruido y no puedes defenderte.</p>"+
     "<p>Tienes <b>tres cuerpos</b> y <b>dos balas</b>. No hay balas por el suelo: el cargador se rellena solo, <b>una bala cada trece segundos</b>, y entre tiro y tiro pasan <b>cuatro</b>. Un disparo mata a cualquier distancia si apuntas bien, y se oye en media casa; el mordisco también mata y apenas suena, pero hay que llegar a tocar a la presa.</p>"+
-    "<p>Hay <b>un solo cordero</b> en la casa y su resplandor rojo se ve desde cualquier rincón, pero <b>se muda cada veintidós segundos</b>. Beber es una carrera: el faro te dice a dónde, y a todos los demás también.</p>"+
+    "<p>Hay <b>un solo cordero</b> en la casa y su resplandor rojo se ve desde cualquier rincón, pero <b>se muda cada cuarenta y cinco segundos</b>. Beber es una carrera: el faro te dice a dónde, y a todos los demás también.</p>"+
    "</div>";
 }
 function renderEntry(){
@@ -3154,7 +3189,7 @@ function renderLobby(){
      "<div id='whoWrap'>"+ppl+"</div></div>"+
    "<div class='rules'>"+
     "<p><b>Se gana bebiendo de dos corderos.</b> Matar no puntúa: solo quita a alguien de en medio cinco segundos y le gasta un cuerpo. Tienes <b>tres cuerpos</b> y <b>dos balas</b>: no hay munición por el suelo, el cargador se rellena solo, <b>una bala cada trece segundos</b>.</p>"+
-    "<p>Hay <b>un solo cordero</b> y su resplandor rojo atraviesa toda la casa. Pero no te espera: cada <b>veintidós segundos</b> se esfuma y aparece en otra punta, y un cadáver dura lo mismo antes de desvanecerse. Si ves el faro y no sales corriendo, lo pierdes — y todo el mundo lo ve igual que tú.</p>"+
+    "<p>Hay <b>un solo cordero</b> y su resplandor rojo atraviesa toda la casa. Pero no te espera: cada <b>cuarenta y cinco segundos</b> se esfuma y aparece en otra punta, y un cadáver dura lo mismo antes de desvanecerse. Si ves el faro y no sales corriendo, lo pierdes — y todo el mundo lo ve igual que tú.</p>"+
     "<p><b>Botón derecho mantenido</b> carga el chillido: susurro, llamada o chillido. Cuanto más cargas, más lejos ves — y más lejos te oyen, que siempre es más de lo que tú alcanzas a ver. La <b>rueda</b> abre o cierra el cono.</p>"+
     "<p>Un <b>disparo mata</b> a cualquier distancia, pero hay que tenerlo a tiro limpio, apuntar fino y esperar <b>cuatro segundos</b> entre tiro y tiro. Bebiendo no puedes disparar ni morder. El estruendo se oye en media casa. El <b>mordisco</b> también mata y apenas hace ruido, pero tienes que llegar a tocarlo.</p>"+
     "<p><b>Andar es lo de serie</b>; con <b>Shift</b> corres, y corriendo se te oye en media casa y se te ve entero. Agachado haces el mismo ruido que andando, pero eres más pequeño y cabes debajo de las cosas.</p>"+
@@ -3269,7 +3304,7 @@ function startMatch(){
   if(!F[0]){genMansion(seed);build3D();}
   phase="play";running=true;winner=null;tStart=now();
   memData.fill(0);memTex.needsUpdate=true;
-  echoes.length=0;clearPhotos();
+  echoes.length=0;ecosPend.length=0;clearPhotos();
   me.ammo=START_AMMO;me.lambs=0;me.kills=0;me.lives=LIVES;me.out=false;me.dead=false;me.drinking=0;shotCD=0;reloadT=0;
   for(const id in peers){const P=peers[id];P.lambs=0;P.kills=0;P.lives=LIVES;P.out=false;}
   const s=(spawnPick!=null&&spawns[spawnPick])?spawns[spawnPick]:farSpawn();
@@ -3526,7 +3561,7 @@ function frameBody(){
        encenderlo es el tacto del shader, poco más de un metro. Como suma en
        vez de tapar, a partir de ahí sencillamente no está. */
     p.mesh.visible=running&&!p.dead&&bodySeen(p.x,p.y,p.z,!!p.cr);}
-  tickPhotos(t);tickTrazos(t);
+  tickEcosPend(t);tickPhotos(t);tickTrazos(t);
   for(let i=0;i<lambs.length;i++){const L=lambs[i];
     if(!L||!L.mesh)continue;
     L.mesh.visible=running&&!L.drained&&!lambsOff;
